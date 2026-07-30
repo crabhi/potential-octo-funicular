@@ -1,0 +1,4 @@
+# Build artifacts produced by check.sh / dafny build — regenerate, don't commit.
+demo.bin
+authz.a
+buggy_verify_output.txt

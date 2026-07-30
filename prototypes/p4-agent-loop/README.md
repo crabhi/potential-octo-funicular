@@ -47,4 +47,33 @@ python3 loop.py --model sonnet --rounds 4 --verify
 
 ## Episode results
 
-(recorded below as they are run)
+### ep-20260730-172415 — model: sonnet, seeded bug: IS-NULL backfill
+
+```
+round 1: violation found, dispatching repairer (sonnet)
+round 2: GREEN (no violation in 30000 traces)
+  apalache verify: NoError
+loop finished: protocol repaired
+```
+
+**The loop worked** — one repair round, no spec edits attempted, green on
+30k random traces and symbolic verification to 12 steps.
+
+**And the fine print is the most valuable finding.** The repairer changed
+only the read-switch guard (`dbN != NULL` → `dbN == dbO`, with a correct
+explanatory comment) and left the backfill criterion at `WHERE N IS NULL`.
+That fix is *sound*: with the switch gated on all rows agreeing, no stale
+value can ever be read — every safety invariant holds, and Apalache
+confirms it. But it is *partial*: a row whose N went stale before the
+drain is never re-copied (backfill only touches NULL rows) and now blocks
+the switch **forever** unless some later write happens to touch that row.
+The migration is safe but no longer guaranteed to complete.
+
+The safety-only gate accepted a fix that traded away liveness — precisely
+the failure mode predicted in `research/08` ("the safest system does
+nothing") and in the CMS features work. The checker did its job; the gate
+was underspecified. Lesson, now demonstrated empirically inside the loop:
+**repair gates need liveness/feature properties alongside safety**
+(here: "the migration can always still complete", a temporal property
+under fairness — Quint/Apalache support temporal checking; wiring it into
+the loop is the next iteration of this prototype).
