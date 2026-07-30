@@ -474,7 +474,7 @@ text_block(504, 364,
            size=10.8, width=402)
 y = bullets(40, 250, [
     "The same check-then-act bug class the migration prototype caught in real Postgres — here it is authorization (stale JWT / cached claims), found by the checker before any code.",
-    "The demo app (examples/cms/app, Rust) makes the knob real: AUTH_MODE=live passes the full policy suite; AUTH_MODE=cached reproduces the model's counterexample over actual HTTP.",
+    "The demo app (examples/cms/app, Rust) makes the knob real: AUTH_MODE=live passes the policy suite (5/5); AUTH_MODE=cached reproduces the model's counterexample over actual HTTP (2/2 stale-token violations — demoted and deactivated), and live mode refuses both with the named rules.",
     "Every 403 names the violated rule (inv_publish_staff_only, ...) — counterexamples stay machine-readable from solver to model to running server.",
 ], 880, size=12, gap=8)
 footer(); c.showPage()
