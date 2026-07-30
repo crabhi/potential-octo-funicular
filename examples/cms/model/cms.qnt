@@ -69,24 +69,28 @@ module cms {
   }
 
   // Admin actions — can happen at any moment, concurrent with sessions.
+  action adminDemoteU(u: int): bool = all {
+    role.get(u) == EDITOR,
+    role' = role.set(u, AUTHOR),
+    active' = active,
+    keepSess, keepArts, keepOk,
+  }
+
   action adminDemote = {
     nondet u = USERS.oneOf()
-    all {
-      role.get(u) == EDITOR,
-      role' = role.set(u, AUTHOR),
-      active' = active,
-      keepSess, keepArts, keepOk,
-    }
+    adminDemoteU(u)
+  }
+
+  action adminDeactivateU(u: int): bool = all {
+    active.get(u),
+    active' = active.set(u, false),
+    role' = role,
+    keepSess, keepArts, keepOk,
   }
 
   action adminDeactivate = {
     nondet u = USERS.oneOf()
-    all {
-      active.get(u),
-      active' = active.set(u, false),
-      role' = role,
-      keepSess, keepArts, keepOk,
-    }
+    adminDeactivateU(u)
   }
 
   // What the request handler believes about the user: live state, or the
