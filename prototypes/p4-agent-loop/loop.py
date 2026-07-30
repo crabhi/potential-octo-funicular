@@ -35,13 +35,33 @@ def typecheck() -> tuple[bool, str]:
     return p.returncode == 0, p.stdout + p.stderr
 
 
+def run_feature_gate() -> tuple[bool, str]:
+    """Scripted feature/liveness runs (frozen part of the gate)."""
+    p = subprocess.run(["quint", "test", str(PROTOCOL), "--main", "migration",
+                        "--backend", "typescript"],
+                       capture_output=True, text=True, timeout=600)
+    return p.returncode == 0, p.stdout + p.stderr
+
+
 def run_check(itf_path: pathlib.Path, samples: int) -> tuple[bool, str]:
+    """Safety simulation + completion-reachability witness."""
     cmd = ["quint", "run", str(PROTOCOL), "--main", "migration",
-           "--invariant", "invAll", "--backend", "typescript",
+           "--invariant", "invAll", "--witnesses", "featDone",
+           "--backend", "typescript",
            "--max-samples", str(samples), "--max-steps", "30",
            "--out-itf", str(itf_path)]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
-    return p.returncode == 0, p.stdout + p.stderr
+    out = p.stdout + p.stderr
+    ok = p.returncode == 0
+    if ok:  # safety green: also require completion to be reachable at all
+        import re
+        m = re.search(r"featDone was witnessed in (\d+)", out)
+        if not m or int(m.group(1)) == 0:
+            ok = False
+            out += "\nGATE FAILURE: migration completion (phase == P_DONE) " \
+                   "was never reached in any explored trace — the protocol " \
+                   "can no longer complete."
+    return ok, out
 
 
 def verify() -> tuple[bool, str]:
@@ -73,9 +93,12 @@ concurrently with API requests from two app instances under snapshot
 isolation. Rolling upgrades mean v1 instances (which write only O) and v2
 instances (which dual-write O and N) coexist for a while.
 
-The model checker found an execution that violates the invariants (they
-express: reads never return stale values; O and N agree after the read
-switch; the switch never happens before backfill completed).
+The repair gate has three frozen parts: safety invariants (reads never
+return stale values; O and N agree after the read switch; the switch never
+happens before backfill completed), scripted feature runs (required
+behaviors that must stay executable end to end), and a completion
+reachability check. The checker found the gate red; the failing part and
+its output are below.
 
 Your rules:
 1. Edit ONLY the action definitions. The section after the line containing
@@ -129,10 +152,17 @@ def main() -> None:
         itf = rdir / "trace.itf.json"
 
         ok_tc, tc_out = typecheck()
-        if ok_tc:
-            ok, out = run_check(itf, args.samples)
-        else:
+        if not ok_tc:
             ok, out = False, "TYPECHECK FAILED:\n" + tc_out
+        else:
+            ok_ft, ft_out = run_feature_gate()
+            if not ok_ft:
+                ok = False
+                out = ("FEATURE GATE FAILED (scripted runs below the FROZEN "
+                       "line define required behaviors; read them in the "
+                       "file, do not edit them):\n" + ft_out)
+            else:
+                ok, out = run_check(itf, args.samples)
         (rdir / "check.log").write_text(out)
 
         if ok:

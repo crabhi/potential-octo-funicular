@@ -59,35 +59,39 @@ module migration {
   }
 
   // v1 instance: writes the old column only.
+  action appWriteV1U(i: int, k: int, v: int): bool = all {
+    instVer.get(i) == 1,
+    oState == COL_PRESENT,
+    dbO' = dbO.set(k, v),
+    dbN' = dbN,
+    logical' = logical.set(k, v),
+    ver' = ver.set(k, ver.get(k) + 1),
+    keepMig, keepBf, keepInst, keepRead,
+  }
+
   action appWriteV1 = {
     nondet i = INSTANCES.oneOf()
     nondet k = KEYS.oneOf()
     nondet v = VALUES.oneOf()
-    all {
-      instVer.get(i) == 1,
-      oState == COL_PRESENT,
-      dbO' = dbO.set(k, v),
-      dbN' = dbN,
-      logical' = logical.set(k, v),
-      ver' = ver.set(k, ver.get(k) + 1),
-      keepMig, keepBf, keepInst, keepRead,
-    }
+    appWriteV1U(i, k, v)
   }
 
   // v2 instance: dual-writes O (while present) and N (once it exists).
+  action appWriteV2U(i: int, k: int, v: int): bool = all {
+    instVer.get(i) == 2,
+    or { oState == COL_PRESENT, nState != COL_ABSENT },
+    dbO' = if (oState == COL_PRESENT) dbO.set(k, v) else dbO,
+    dbN' = if (nState != COL_ABSENT) dbN.set(k, v) else dbN,
+    logical' = logical.set(k, v),
+    ver' = ver.set(k, ver.get(k) + 1),
+    keepMig, keepBf, keepInst, keepRead,
+  }
+
   action appWriteV2 = {
     nondet i = INSTANCES.oneOf()
     nondet k = KEYS.oneOf()
     nondet v = VALUES.oneOf()
-    all {
-      instVer.get(i) == 2,
-      or { oState == COL_PRESENT, nState != COL_ABSENT },
-      dbO' = if (oState == COL_PRESENT) dbO.set(k, v) else dbO,
-      dbN' = if (nState != COL_ABSENT) dbN.set(k, v) else dbN,
-      logical' = logical.set(k, v),
-      ver' = ver.set(k, ver.get(k) + 1),
-      keepMig, keepBf, keepInst, keepRead,
-    }
+    appWriteV2U(i, k, v)
   }
 
   action appRead = {
@@ -102,14 +106,16 @@ module migration {
     }
   }
 
+  action upgradeU(i: int): bool = all {
+    instVer.get(i) == 1,
+    nState != COL_ABSENT,
+    instVer' = instVer.set(i, 2),
+    keepDb, keepMig, keepBf, keepRead,
+  }
+
   action upgrade = {
     nondet i = INSTANCES.oneOf()
-    all {
-      instVer.get(i) == 1,
-      nState != COL_ABSENT,
-      instVer' = instVer.set(i, 2),
-      keepDb, keepMig, keepBf, keepRead,
-    }
+    upgradeU(i)
   }
 
   action expand = all {
@@ -123,16 +129,18 @@ module migration {
   // Backfill under snapshot isolation: begin takes a snapshot of one
   // not-yet-backfilled row (value + row version); commit succeeds only if
   // no write committed in between (first committer wins).
+  action backfillBeginU(k: int): bool = all {
+    phase == P_EXPANDED,
+    not(bf._1),
+    dbN.get(k) == NULL,
+    INSTANCES.forall(i => instVer.get(i) == 2),
+    bf' = (true, k, dbO.get(k), ver.get(k)),
+    keepDb, keepMig, keepInst, keepRead,
+  }
+
   action backfillBegin = {
     nondet k = KEYS.oneOf()
-    all {
-      phase == P_EXPANDED,
-      not(bf._1),
-      dbN.get(k) == NULL,
-      INSTANCES.forall(i => instVer.get(i) == 2),
-      bf' = (true, k, dbO.get(k), ver.get(k)),
-      keepDb, keepMig, keepInst, keepRead,
-    }
+    backfillBeginU(k)
   }
 
   action backfillCommit = all {
@@ -153,13 +161,11 @@ module migration {
     keepDb, keepMig, keepInst, keepRead,
   }
 
-  // Read switch: N becomes readable once every row truly matches O (a
-  // non-null N is not enough — a still-v1 instance can write O only,
-  // after N was set, leaving N stale for that key).
+  // Read switch: N becomes readable once every row has a value.
   action switchRead = all {
     phase == P_EXPANDED,
     not(bf._1),
-    KEYS.forall(k => dbN.get(k) == dbO.get(k)),
+    KEYS.forall(k => dbN.get(k) != NULL),
     INSTANCES.forall(i => instVer.get(i) == 2),
     phase' = P_SWITCHED,
     nState' = COL_PRESENT,
@@ -209,4 +215,46 @@ module migration {
     (phase >= P_SWITCHED) implies KEYS.forall(k => dbN.get(k) != NULL)
 
   val invAll = and { invReadsCorrect, invColumnsAgree, invBackfillDoneAtSwitch }
+
+  // ---- Feature/liveness gate (also FROZEN) --------------------------------
+  //
+  // Safety alone is gameable: a protocol that can never switch reads
+  // satisfies every invariant above. The properties below pin the
+  // must-still-work side and are part of the repair gate.
+
+  // F1: completion must stay reachable — random exploration has to be able
+  // to drive the migration to P_DONE at all (checked as a witness count).
+  val featDone = phase == P_DONE
+
+  // F2 (adversarial recovery): during the rolling window, a v2 instance
+  // dual-writes key 1, then a still-v1 instance overwrites key 1's old
+  // column (its N copy is now stale). After the drain completes, the
+  // migration machinery ALONE must still be able to repair that row and
+  // reach the read switch. A protocol that strands stale rows fails here.
+  run staleRowRecoveryTest = init
+    .then(expand)
+    .then(upgradeU(1))
+    .then(appWriteV2U(1, 1, 1))   // v2 dual-write: O[1]=1, N[1]=1
+    .then(appWriteV1U(2, 1, 2))   // v1 write:      O[1]=2, N[1] stale
+    .then(upgradeU(2))            // drain complete
+    .then(backfillBeginU(1))      // must be enabled for the stale row
+    .then(backfillCommit)
+    .then(backfillBeginU(2))
+    .then(backfillCommit)
+    .then(switchRead)
+    .expect(phase == P_SWITCHED and lastReadOk)
+
+  // F3 (happy path): the plain migration must still complete end to end.
+  run happyPathTest = init
+    .then(expand)
+    .then(upgradeU(1))
+    .then(upgradeU(2))
+    .then(backfillBeginU(1))
+    .then(backfillCommit)
+    .then(backfillBeginU(2))
+    .then(backfillCommit)
+    .then(switchRead)
+    .then(contractStart)
+    .then(contractFinish)
+    .expect(phase == P_DONE and lastReadOk)
 }

@@ -1,0 +1,20 @@
+FEATURE GATE FAILED (scripted runs below the FROZEN line define required behaviors; read them in the file, do not edit them):
+
+  migration
+    1) staleRowRecoveryTest failed after 1 test(s)
+    ok happyPathTest passed 1 test(s)
+
+  1 passing (45ms)
+  1 failed
+
+  1) staleRowRecoveryTest:
+       Error [QNT513]: Cannot continue in `then` because the highlighted expression evaluated to false
+        at /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt:240:11
+        240:     .then(backfillBeginU(1))      // must be enabled for the stale row
+                       ^^^^^^^^^^^^^^^^^
+    Use --seed=0xc131dfdd60a3d --match=staleRowRecoveryTest to repeat.
+
+
+  Use --verbosity=3 to show executions.
+  Further debug with: quint test --verbosity=3 /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt
+error: Tests failed

@@ -1,0 +1,55 @@
+You are an automated repair agent for a formal protocol model.
+
+The file at /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt is a Quint model of an online schema migration: column O
+is renamed to N via expand/contract (add N write-only, upgrade app instances
+to dual-write, backfill old rows, switch reads to N, drop O), running
+concurrently with API requests from two app instances under snapshot
+isolation. Rolling upgrades mean v1 instances (which write only O) and v2
+instances (which dual-write O and N) coexist for a while.
+
+The repair gate has three frozen parts: safety invariants (reads never
+return stale values; O and N agree after the read switch; the switch never
+happens before backfill completed), scripted feature runs (required
+behaviors that must stay executable end to end), and a completion
+reachability check. The checker found the gate red; the failing part and
+its output are below.
+
+Your rules:
+1. Edit ONLY the action definitions. The section after the line containing
+   'INVARIANTS - FROZEN' is frozen: the harness reverts any change there and
+   your round fails.
+2. Make the minimal protocol change that makes the invariants hold. Reason
+   about which real-world migration ordering or criterion is wrong in the
+   actions; do not add artificial guards that merely disable functionality
+   (e.g. do not make actions unexecutable wholesale).
+3. Use the Read tool to read the file and the Edit tool to change it.
+   Do not create new files. Do not run shell commands.
+
+Checker summary:
+FEATURE GATE FAILED (scripted runs below the FROZEN line define required behaviors; read them in the file, do not edit them):
+
+  migration
+    1) staleRowRecoveryTest failed after 1 test(s)
+    ok happyPathTest passed 1 test(s)
+
+  1 passing (45ms)
+  1 failed
+
+  1) staleRowRecoveryTest:
+       Error [QNT513]: Cannot continue in `then` because the highlighted expression evaluated to false
+        at /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt:240:11
+        240:     .then(backfillBeginU(1))      // must be enabled for the stale row
+                       ^^^^^^^^^^^^^^^^^
+    Use --seed=0xc131dfdd60a3d --match=staleRowRecoveryTest to repeat.
+
+
+  Use --verbosity=3 to show executions.
+  Further debug with: quint test --verbosity=3 /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt
+error: Tests failed
+
+
+Counterexample trace (ITF JSON; vars: phase 0=initial 1=expanded 2=switched,
+oState/nState 0=absent 1=writeonly 2=present 3=deleteonly, dbO/dbN maps
+key->value with -1 = NULL, logical = value the app believes, bf = in-flight
+backfill (active,key,val,snapVer), lastReadOk = ghost):
+(no ITF trace available: [Errno 2] No such file or directory: '/home/user/potential-octo-funicular/prototypes/p4-agent-loop/episodes/ep-20260730-194946/round-1/trace.itf.json')

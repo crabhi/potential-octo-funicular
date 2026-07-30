@@ -16,6 +16,18 @@ dead ends explicitly. Not limited to Quint.
 | — | Alloy 6 for the access rules | (not pursued now) P2/Z3 already covers single-state analysis; Alloy would add instance visualization only | — | parked |
 | — | Generate Rust from the Quint spec | No tooling exists (PGo is PlusCal→Go only); would be a research project of its own | — | parked |
 
+## Phase 2 (started 2026-07-30): strong guarantees over NL guidance
+
+Directive from the developer: prefer mechanical guarantees to steering the
+LLM with natural language. Consequences: repair prompts stay generic; all
+correctness pressure moves into frozen, machine-checked gates; boundaries
+become type errors instead of conventions.
+
+| Track | Approach | Hypothesis | Falsifier | Status |
+|---|---|---|---|---|
+| F | **Gate-strengthened repair loop**: add frozen feature runs (adversarial stale-row recovery, happy path) + completion-reachability witness to P4's gate; re-run the episode from the original double-bug protocol with the SAME generic prompt | The strengthened gate alone forces the full fix (episode 1's partial fix gets rejected mechanically) | The repairer stalls, or games the gate some third way the runs don't cover | in progress |
+| G | **Type-enforced kernel boundary** (`examples/cms/`): protected app operations require a `Grant<Op>` token only the verified kernel can mint | Bypassing the kernel becomes a compile error, with the app harness and kernel proofs staying green | The typestate refactor breaks the app/race semantics, or meaningful checks can't be tokenized | in progress |
+
 ## Ground rules (from 07/08)
 
 - The spec is frozen for repair agents; harnesses enforce it mechanically
