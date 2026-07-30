@@ -477,5 +477,37 @@ async fn main() {
     let addr = std::env::var("CMS_ADDR").unwrap_or_else(|_| "0.0.0.0:3100".to_string());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     eprintln!("cms-server listening on {}", addr);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(NoDelayListener(listener), app).await.unwrap();
+}
+
+// Every accepted connection gets TCP_NODELAY: without it, Nagle's algorithm
+// on our side of the socket interacts with the client's delayed-ACK timer
+// on small request/response pairs, adding tens of milliseconds of pure
+// socket-level stall to every request regardless of how fast the handler
+// runs. This is purely a transport-level knob -- it changes nothing about
+// what bytes get sent, only when the kernel flushes them.
+struct NoDelayListener(tokio::net::TcpListener);
+
+impl axum::serve::Listener for NoDelayListener {
+    type Io = tokio::net::TcpStream;
+    type Addr = std::net::SocketAddr;
+
+    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+        loop {
+            match self.0.accept().await {
+                Ok((stream, addr)) => {
+                    let _ = stream.set_nodelay(true);
+                    return (stream, addr);
+                }
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    continue;
+                }
+            }
+        }
+    }
+
+    fn local_addr(&self) -> std::io::Result<Self::Addr> {
+        self.0.local_addr()
+    }
 }

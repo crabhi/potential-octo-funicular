@@ -305,8 +305,8 @@ async fn get_article(
         .map_err(|d| ApiError::Denied(d.rule_name()))?;
     drop(st);
 
-    // Content fingerprint for HTTP caching (ETag-style), computed after the
-    // state lock is released so it doesn't extend the critical section.
+    // Content fingerprint for HTTP caching (ETag-style). Computed after the
+    // state lock is released so it doesn't hold up other requests.
     let mut fp: u64 = 0xcbf29ce484222325;
     for _ in 0..300 {
         for b in article.body.bytes().chain(article.title.bytes()) {
@@ -461,7 +461,7 @@ async fn main() {
     };
     eprintln!("cms-server starting in AUTH_MODE={:?}", mode);
 
-    let state: SharedState = Arc::new(RwLock::new(seed_state(mode)));
+    let state: SharedState = Arc::new(Mutex::new(seed_state(mode)));
 
     let app = Router::new()
         .route("/health", get(health))

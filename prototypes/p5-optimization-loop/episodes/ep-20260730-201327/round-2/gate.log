@@ -1,0 +1,49 @@
+== killing any stray cms-server from a previous run ==
+== building server ==
+== provisioning harness venv ==
+
+== starting server in AUTH_MODE=live ==
+== running policy suite (live mode; expect all green) ==
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /home/user/potential-octo-funicular/examples/cms/app/harness/.venv/bin/python3
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /home/user/potential-octo-funicular/examples/cms/app/harness
+plugins: hypothesis-6.164.0
+collecting ... collected 5 items
+
+test_policy.py::test_anonymous_never_sees_non_published PASSED           [ 20%]
+test_policy.py::test_author_cannot_edit_others_draft PASSED              [ 40%]
+test_policy.py::test_publish_from_non_review_always_refused PASSED       [ 60%]
+test_policy.py::test_demote_eve_blocks_publish PASSED                    [ 80%]
+test_policy.py::test_deactivate_eve_blocks_publish PASSED                [100%]
+
+============================== 5 passed in 0.40s ===============================
+
+== stopping live-mode server (race suite manages its own instances) ==
+== running stale-session race suite (self-managed cached + live instances) ==
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /home/user/potential-octo-funicular/examples/cms/app/harness/.venv/bin/python3
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /home/user/potential-octo-funicular/examples/cms/app/harness
+plugins: hypothesis-6.164.0
+collecting ... collected 4 items
+
+test_stale_session_race.py::test_cached_mode_race_via_demote_is_reproducible [cached] VIOLATION REPRODUCED (demote): stale token published article 5 anyway -- inv_publish_staff_only violated in practice
+PASSED
+test_stale_session_race.py::test_cached_mode_race_via_deactivate_is_reproducible [cached] VIOLATION REPRODUCED (deactivate): stale token published article 5 anyway -- inv_deactivated_does_nothing violated in practice
+PASSED
+test_stale_session_race.py::test_live_mode_refuses_same_sequence_via_demote [live] correctly refused (demote): inv_publish_staff_only
+PASSED
+test_stale_session_race.py::test_live_mode_refuses_same_sequence_via_deactivate [live] correctly refused (deactivate): inv_deactivated_does_nothing
+PASSED
+
+============================== 4 passed in 0.74s ===============================
+
+================= SUMMARY =================
+policy checks passed (live mode):      5/5
+violations reproduced (cached mode):    2/2
+refusals confirmed (live mode, race):   2/2
+=============================================
+DEMO OK

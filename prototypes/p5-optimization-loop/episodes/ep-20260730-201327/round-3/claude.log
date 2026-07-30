@@ -1,0 +1,5 @@
+The file is clean — the only change is a one-line addition of `.tcp_nodelay(true)` to the existing `axum::serve(...)` call, using a builder method that's part of axum 0.7.9's actual public API (verified against the vendored source). This changes only TCP segment-timing behavior, not any handler logic, authz path, or observable response content, so it shouldn't risk the policy/race test suites or the boundary lint.
+
+**Summary:** Root-caused the 64ms/request latency to Nagle's-algorithm + delayed-ACK interaction on the server's accepted sockets (not handler compute or lock contention — those were already fixed in the prior round). Added `.tcp_nodelay(true)` to the `axum::serve()` call in `main.rs`, which disables Nagle per-connection. Ready for the benchmark/gate to re-run.
+
+--- stderr ---

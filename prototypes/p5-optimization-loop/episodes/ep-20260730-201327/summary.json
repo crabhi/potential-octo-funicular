@@ -1,0 +1,52 @@
+{
+  "baseline_rps": 62.9,
+  "final_rps": 248.1,
+  "speedup": 3.94,
+  "rounds": [
+    {
+      "round": 0,
+      "event": "baseline",
+      "bench": {
+        "requests": 329,
+        "errors": 0,
+        "rps": 62.9,
+        "p50_ms": 248.43,
+        "p95_ms": 287.35
+      }
+    },
+    {
+      "round": 1,
+      "event": "gate_red",
+      "frozen_violation": false
+    },
+    {
+      "round": 2,
+      "event": "accepted",
+      "bench": {
+        "requests": 1256,
+        "errors": 0,
+        "rps": 248.1,
+        "p50_ms": 64.4,
+        "p95_ms": 97.76
+      },
+      "frozen_violation": false
+    },
+    {
+      "round": 3,
+      "event": "no_gain",
+      "bench": {
+        "requests": 1289,
+        "errors": 0,
+        "rps": 254.9,
+        "p50_ms": 62.67,
+        "p95_ms": 95.68
+      },
+      "frozen_violation": false
+    },
+    {
+      "round": 4,
+      "event": "gate_red",
+      "frozen_violation": false
+    }
+  ]
+}

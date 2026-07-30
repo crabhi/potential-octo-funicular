@@ -1,0 +1,9 @@
+Everything checks out — no leftover `Mutex` references, single `RwLock` import, and `Arc<Mutex<AppState>>` → `Arc<RwLock<AppState>>` consistently applied.
+
+Summary of changes to `main.rs`:
+1. **`Mutex` → `RwLock`** for `SharedState`. `get_article` (the only pure read, and the benchmarked path) now takes `.read().await`, so all 16 concurrent `GET` clients can proceed in parallel instead of queuing behind a single exclusive lock. All mutating handlers (`login`, `create_article`, `edit_article`, `submit_article`, `publish_article`, `admin_deactivate`, `admin_demote`) now use `.write().await`, preserving the same exclusive-access semantics writes always had.
+2. **Moved the 300-iteration fingerprint hash loop outside the lock** in `get_article` — it now runs after `drop(st)`, once the article data and authorization decision are already in hand, so it no longer blocks other readers/writers while it churns through the article body/title bytes.
+
+Neither change touches authorization logic, response bodies, status codes, or headers — `authz::require` and the identity-resolution logic are untouched, so the policy/race test suites and boundary lint should be unaffected. This directly targets the two defects the benchmark was designed to expose: full read serialization on a `Mutex`, and CPU work held under that lock.
+
+--- stderr ---

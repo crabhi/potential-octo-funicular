@@ -1,0 +1,41 @@
+You are an automated performance-optimization agent.
+
+Target: the Rust web service source file at /home/user/potential-octo-funicular/examples/cms/app/server/src/main.rs. You may edit ONLY
+that file, using the Read and Edit tools. Everything else in the repository
+(Cargo.toml, test harnesses, the authorization kernel crate, scripts,
+benchmarks) is frozen — the harness reverts any other change and fails your
+round. Do not run shell commands. Do not create files.
+
+Objective: maximize the throughput of this benchmark: 16 concurrent clients
+issue GET /articles/:id for a published article for 5 seconds against the
+service in AUTH_MODE=live.
+
+Hard constraint: after your edit, a mechanical gate re-runs the service's
+full policy and race test suites (both AUTH_MODE settings) and the
+authorization boundary lint; it must stay green. Observable HTTP behavior
+(status codes, bodies, headers) must not change.
+
+Current benchmark result: {"requests": 329, "errors": 0, "rps": 62.9, "p50_ms": 248.43, "p95_ms": 287.35}
+
+Previous round: your edit was REVERTED because the gate failed. Gate output tail:
+== killing any stray cms-server from a previous run ==
+== building server ==
+build failed
+error[E0433]: failed to resolve: use of undeclared type `Mutex`
+   --> src/main.rs:464:39
+    |
+464 |     let state: SharedState = Arc::new(Mutex::new(seed_state(mode)));
+    |                                       ^^^^^ use of undeclared type `Mutex`
+    |
+help: consider importing one of these structs
+    |
+ 23 + use std::sync::Mutex;
+    |
+ 23 + use std::sync::nonpoison::Mutex;
+    |
+ 23 + use tokio::sync::Mutex;
+    |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `cms-server` (bin "cms-server") due to 1 previous error
+

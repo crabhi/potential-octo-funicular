@@ -477,5 +477,11 @@ async fn main() {
     let addr = std::env::var("CMS_ADDR").unwrap_or_else(|_| "0.0.0.0:3100".to_string());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     eprintln!("cms-server listening on {}", addr);
-    axum::serve(listener, app).await.unwrap();
+    // Disable Nagle's algorithm on accepted sockets. Without it, a response
+    // written in more than one segment can sit waiting to coalesce with more
+    // outbound data while the peer's delayed-ACK timer is simultaneously
+    // waiting on us -- a classic tens-of-milliseconds stall per request that
+    // has nothing to do with handler compute or lock contention. This only
+    // affects segment timing, never response status/body/headers.
+    axum::serve(listener, app).tcp_nodelay(true).await.unwrap();
 }
