@@ -388,6 +388,97 @@ y = bullets(40, 230, [
 ], 880, size=12, gap=8)
 footer(); c.showPage()
 
+# ------------------------------------------------------- CMS example 1 of 3
+header("Worked example · a CMS", "Ten security rules everyone recognizes")
+text_block(40, H - 108,
+           "The same workflow on a familiar domain: a content management system with user roles, draft articles, "
+           "a review/publish lifecycle, and public access. Requirements start as stakeholder sentences in tickets:",
+           size=12.5, width=880)
+rules_ex = [
+    ("inv_draft_visibility", "“A draft is visible only to its author, editors, and admins.”"),
+    ("inv_publish_staff_only", "“Only editors and admins may publish.”"),
+    ("inv_anonymous_published_only", "“Anonymous visitors can read published articles and nothing else.”"),
+    ("inv_deactivated_does_nothing", "“A deactivated account can neither edit nor publish anything.”"),
+    ("inv_archived_not_public", "“Archived articles are not publicly accessible.”"),
+]
+yy = H - 168
+for nm, sent in rules_ex:
+    panel(40, yy - 40, 620, 40)
+    c.setFont("Courier-Bold", 10)
+    c.setFillColor(ACCENT_D)
+    c.drawString(52, yy - 18, nm)
+    c.setFont(FI, 10.5)
+    c.setFillColor(INK)
+    c.drawString(52, yy - 33, sent)
+    yy -= 48
+panel(690, yy + 8, 230, 232)
+c.setFont(FB, 12); c.setFillColor(ACCENT_D); c.drawString(704, yy + 216, "Lifecycle")
+tx = yy + 192
+for st in ["draft", "in review", "published", "archived"]:
+    c.setFont(FB, 11); c.setFillColor(INK)
+    c.drawString(724, tx, st)
+    if st != "archived":
+        arrow(714, tx - 6, 714, tx - 22)
+    c.setFillColor(ACCENT)
+    c.circle(714, tx + 3, 3, fill=1, stroke=0)
+    tx -= 34
+text_block(704, tx + 6, "Roles: anonymous, author, editor, admin — plus admin actions (demote, deactivate) that can fire at any moment.",
+           size=9.5, width=202, color=MUTED)
+text_block(40, yy - 16,
+           "Each sentence becomes one typed rule (LLM-drafted, reviewed next to the original). The rule NAMES travel "
+           "through every later stage — oracle verdicts, model invariants, and the app's 403 responses all cite them.",
+           size=12, width=620, color=ACCENT_D)
+footer(); c.showPage()
+
+# ------------------------------------------------------- CMS example 2 of 3
+header("Worked example · a CMS", "The oracle at code-review time")
+panel(40, 250, 430, 160)
+c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(54, 386, "Two tickets collide")
+chip(360, 382, "IMPOSSIBLE", color=WARN)
+text_block(54, 364,
+           "Security files SEC-482: “sessions expire within 15 minutes” (SOC2). Editorial UX files "
+           "CMS-1201: “sessions last at least an hour.” Both get translated and merged. The solver "
+           "flags the set as unsatisfiable and the unsat core names exactly those two rules — out of "
+           "twelve — before any session code exists.", size=10.8, width=402)
+panel(490, 250, 430, 160)
+c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(504, 386, "A rule silently kills a feature")
+chip(818, 382, "INVALID", color=WARN)
+text_block(504, 364,
+           "Legal adds LEG-77: “unpublished material is accessible only to the person who wrote it.” "
+           "Nothing contradicts — the set stays CONSISTENT. But query the claim “an editor can view "
+           "someone else's draft” → INVALID: under the combined rules, review-before-publish is dead. "
+           "Every individual rule looks reasonable; the solver sees the consequence.", size=10.8, width=402)
+text_block(40, 214,
+           "Both answers arrive at review time, from a query — not from a production incident or a bug report three sprints later.",
+           size=12.5, width=880, color=ACCENT_D)
+text_block(40, 168,
+           "This is the project's “query the invariants for contradictions and unexpected outcomes” step, running on real files "
+           "in the repo: examples/cms/invariants/.", size=11.5, width=880, color=MUTED, font=FI)
+footer(); c.showPage()
+
+# ------------------------------------------------------- CMS example 3 of 3
+header("Worked example · a CMS", "The checker finds the stale-session race")
+text_block(40, H - 108,
+           "Single-state rules can't see time. The model adds it: sessions cache the user's role at login; admin "
+           "actions (demote, deactivate) run concurrently. One constant selects the design — and only one survives:",
+           size=12.5, width=880)
+panel(40, 280, 430, 130, fill=HexColor("#E9F1EC"))
+c.setFont(FB, 12.5); c.setFillColor(OK); c.drawString(54, 386, "cms_live — re-check on every action")
+text_block(54, 364, "20,000 simulated traces clean; Apalache verifies all executions to depth 10. "
+           "Authorization at time of use is safe by construction.", size=10.8, width=402)
+panel(490, 280, 430, 130, fill=HexColor("#F6E8E1"))
+c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(504, 386, "cms_cached — trust the session snapshot")
+text_block(504, 364,
+           "Counterexample in under a second: an author logs in, the admin deactivates the account, "
+           "the still-open session submits content anyway. Other seeds: a demoted editor still publishes.",
+           size=10.8, width=402)
+y = bullets(40, 250, [
+    "The same check-then-act bug class the migration prototype caught in real Postgres — here it is authorization (stale JWT / cached claims), found by the checker before any code.",
+    "The demo app (examples/cms/app, Rust) makes the knob real: AUTH_MODE=live passes the full policy suite; AUTH_MODE=cached reproduces the model's counterexample over actual HTTP.",
+    "Every 403 names the violated rule (inv_publish_staff_only, ...) — counterexamples stay machine-readable from solver to model to running server.",
+], 880, size=12, gap=8)
+footer(); c.showPage()
+
 # ---------------------------------------------------------------- slide 10
 header("Novelty", "What's new here")
 y = bullets(40, H - 120, [
@@ -444,8 +535,9 @@ for i, ln in enumerate([
     c.drawString(70, 350 - i * 28, ln)
 c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
-c.drawString(70, 160, "Repo: research/INDEX.md (all notes) · research/08-workflow-vision.md (this argument, long form)")
-c.drawString(70, 140, "Prototypes: p1-migration-model (./check.sh) · p2-invariant-oracle (./demo.sh) · p3-conformance-harness (./run_demo.sh)")
+c.drawString(70, 168, "Repo: research/INDEX.md (all notes) · research/08-workflow-vision.md (this argument, long form)")
+c.drawString(70, 148, "Prototypes: p1-migration-model (./check.sh) · p2-invariant-oracle (./demo.sh) · p3-conformance-harness (./run_demo.sh)")
+c.drawString(70, 128, "Worked example: examples/cms — the CMS from slides 10-12, every artifact runnable")
 footer(title_page=True)
 c.showPage()
 
