@@ -32,11 +32,12 @@ class MigrationRunner(threading.Thread):
 
     STEPS = ["expand", "install-trigger", "backfill", "read-switch"]
 
-    def __init__(self, drain_before_contract, step_pause_s=0.15, drain_pause_s=0.4):
+    def __init__(self, drain_before_contract, step_pause_s=0.15, drain_pause_s=0.4, quiesce_pause_s=0.15):
         super().__init__(daemon=True)
         self.drain_before_contract = drain_before_contract
         self.step_pause_s = step_pause_s
         self.drain_pause_s = drain_pause_s
+        self.quiesce_pause_s = quiesce_pause_s
         self._lock = threading.Lock()
         self._phase = "v1-only"
         self.timeline = []
@@ -54,8 +55,19 @@ class MigrationRunner(threading.Thread):
 
     def v1_allowed(self):
         if self.drain_before_contract:
-            return self.phase not in ("draining-v1", "contracted")
+            return self.phase not in ("draining-v1", "quiescing", "contracted")
         return True  # chaos mode: keep hammering v1 straight through contract
+
+    def v2_allowed(self):
+        # See README "Findings" -- v2 itself has a TOCTOU race (read
+        # migration_state flags, decide a query text, then execute it) that
+        # a request can straddle across the exact instant `contract` commits.
+        # A brief quiesce of *all* traffic right at the cutover (mirroring
+        # the atomic-rename pause real online-DDL tools use) closes it; v1's
+        # long drain window does not, because it only stops one side.
+        if self.drain_before_contract:
+            return self.phase != "quiescing"
+        return True
 
     def run(self):
         for step in self.STEPS:
@@ -65,6 +77,8 @@ class MigrationRunner(threading.Thread):
         if self.drain_before_contract:
             self._set_phase("draining-v1")
             time.sleep(self.drain_pause_s)
+            self._set_phase("quiescing")
+            time.sleep(self.quiesce_pause_s)
         common.run_migrate_step("contract")
         self._set_phase("contracted")
 
@@ -72,7 +86,16 @@ class MigrationRunner(threading.Thread):
 def worker_loop(worker_id, runner, stop_event, results, results_lock, model, model_lock, shared_ids, ids_lock):
     rng = random.Random(1000 + worker_id)
     while not stop_event.is_set():
-        want_v1 = runner.v1_allowed() and rng.random() < 0.5
+        v1_ok, v2_ok = runner.v1_allowed(), runner.v2_allowed()
+        if not v1_ok and not v2_ok:
+            # Brief global quiesce around the exact contract cutover -- see
+            # MigrationRunner.v2_allowed(). No request is sent this tick.
+            time.sleep(0.005)
+            continue
+        if v1_ok and v2_ok:
+            want_v1 = rng.random() < 0.5
+        else:
+            want_v1 = v1_ok
         base = common.BASE_V1 if want_v1 else common.BASE_V2
         version_tag = "v1" if want_v1 else "v2"
         phase = runner.phase

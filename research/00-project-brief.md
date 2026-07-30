@@ -54,6 +54,8 @@ invariants.
 ## Milestones
 
 - [x] M1: survey tools & approaches (research notes)
-- [ ] M2: agree on approaches with developer
-- [ ] M3: small prototypes for agreed approaches
-- [ ] M4: end-to-end loop (invariants -> spec -> check -> agent optimization)
+- [x] M2: agree on approaches with developer (see Decisions above)
+- [x] M3: small prototypes for agreed approaches (prototypes/p1..p3)
+- [ ] M4: end-to-end loop (invariants -> spec -> check -> agent optimization);
+      P4 agent-loop skeleton is the next step, plus Elle history checking in P3
+      and multi-statement transactions in P1
