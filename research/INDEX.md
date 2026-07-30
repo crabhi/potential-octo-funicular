@@ -19,3 +19,4 @@ Keep this file current: one line per note, newest changes noted in the log.
 - 2026-07-30: 06-llm-formal-methods.md drafted.
 - 2026-07-30: 05-db-migrations-concurrency.md drafted.
 - 2026-07-30: all six research notes (01–06) drafted; 07-synthesis.md written with candidate architectures A/B/C, recommendation (hybrid C), and proposed prototypes P1–P4. Awaiting developer decision (M2).
+- 2026-07-30: M2 decided — P1+P2+P3, Quint, Rust app, snapshot isolation (see 00-project-brief.md Decisions). Prototype work started under prototypes/.

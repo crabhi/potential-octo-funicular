@@ -41,6 +41,16 @@ invariants.
 - Notes live in `research/`; `research/INDEX.md` is the index. Update often —
   the project runs across a long time span.
 
+## Decisions (M2, agreed with developer 2026-07-30)
+
+- Build prototypes **P1** (migration model), **P2** (invariant oracle),
+  **P3** (conformance harness). P4 (agent-loop skeleton) deferred.
+- Spec language: **Quint** (TLA+ semantics, LLM Kit, Apalache backend).
+- Example app implementation language: **Rust**.
+- Isolation level to model: **snapshot isolation** from the start
+  (extend existing SI spec patterns; not plain serializable).
+- Architecture direction: **hybrid/layered (option C** in 07-synthesis.md).
+
 ## Milestones
 
 - [x] M1: survey tools & approaches (research notes)
