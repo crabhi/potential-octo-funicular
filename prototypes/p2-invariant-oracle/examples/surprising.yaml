@@ -1,0 +1,69 @@
+# Same migration model as consistent.yaml, but the guard that says "contract
+# may not start while an old-version instance is still running" was never
+# written down (a developer forgot it, or assumed it was implied by
+# something else). The remaining invariants are still mutually consistent
+# -- `check` reports CONSISTENT -- but `witness` will turn up a model where
+# phase == contract and old_running == true: the migration is dropping the
+# column while an old binary that still might read/write it is up. That is
+# very unlikely to be what the developer intended; it is exactly the kind
+# of "surprising but allowed" state this oracle is meant to surface before
+# any code exists.
+
+variables:
+  phase:
+    type: enum
+    values: [expand, backfill, contract, done]
+  column_state:
+    type: enum
+    values: [absent, write_only, present, delete_only]
+  version_skew:
+    type: int
+    min: 0
+    max: 3
+  old_running:
+    type: bool
+  new_running:
+    type: bool
+  reads_absent_column:
+    type: bool
+
+invariants:
+  - name: inv_skew_bound
+    description: >-
+      At most one version of app code (old vs. new) may run concurrently
+      during any migration phase.
+    formula: "version_skew <= 1"
+
+  - name: inv_no_read_absent
+    description: >-
+      No API request may read the migrated column while its schema state
+      is absent.
+    formula: "not (reads_absent_column and column_state == \"absent\")"
+
+  - name: inv_expand_state
+    description: >-
+      During the expand phase the new column exists and is written by new
+      code only (write-only); it is not yet safe to read.
+    formula: "implies(phase == \"expand\", column_state == \"write_only\")"
+
+  - name: inv_backfill_state
+    description: >-
+      During backfill the column is write-only until the backfill job
+      finishes, after which it is present (fully readable).
+    formula: >-
+      implies(phase == "backfill", column_state == "write_only" or
+      column_state == "present")
+
+  - name: inv_contract_state
+    description: >-
+      During contract the old data path is being removed; the column is
+      treated as delete-only (being dropped, not written by new code).
+    formula: "implies(phase == \"contract\", column_state == \"delete_only\")"
+
+  # NOTE: inv_contract_needs_no_old from consistent.yaml is missing here.
+  # That is the injected bug for this example.
+
+  - name: inv_done_state
+    description: >-
+      Once the migration is done, the old column is fully absent.
+    formula: "implies(phase == \"done\", column_state == \"absent\")"
