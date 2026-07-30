@@ -1,0 +1,162 @@
+An example execution:
+
+[State 0]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_live::cms::sess: Map(1 -> (false, 1, false), 2 -> (false, 1, false)),
+  mbt::actionTaken: "init",
+  mbt::nondetPicks: { a: None, u: None }
+}
+
+[State 1]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_live::cms::sess: Map(1 -> (false, 1, false), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 2]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (false, 1, false), 2 -> (true, 2, true)),
+  mbt::actionTaken: "adminDemote",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 3]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 4]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "submitReview",
+  mbt::nondetPicks: { a: Some(2), u: Some(1) }
+}
+
+[State 5]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 0, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 6]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "submitReview",
+  mbt::nondetPicks: { a: Some(1), u: Some(1) }
+}
+
+[State 7]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 8]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 1, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 9]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 1, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 10]
+{
+  cms_live::cms::active: Map(1 -> true, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 1, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 11]
+{
+  cms_live::cms::active: Map(1 -> false, 2 -> true),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 1, true)),
+  mbt::actionTaken: "adminDeactivate",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 12]
+{
+  cms_live::cms::active: Map(1 -> false, 2 -> false),
+  cms_live::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::lastActionOk: true,
+  cms_live::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_live::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 1, true)),
+  mbt::actionTaken: "adminDeactivate",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[ok] No violation found (6316ms at 1583 traces/second).
+Trace length statistics: max=13, min=4, average=6.34
+You may increase --max-samples and --max-steps.
+Use --verbosity to produce more (or less) output.

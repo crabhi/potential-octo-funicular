@@ -1,0 +1,113 @@
+An example execution:
+
+[State 0]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (false, 1, false), 2 -> (false, 1, false)),
+  mbt::actionTaken: "init",
+  mbt::nondetPicks: { a: None, u: None }
+}
+
+[State 1]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 2]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
+  mbt::actionTaken: "submitReview",
+  mbt::nondetPicks: { a: Some(2), u: Some(1) }
+}
+
+[State 3]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 4]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "submitReview",
+  mbt::nondetPicks: { a: Some(1), u: Some(1) }
+}
+
+[State 5]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "adminDemote",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 6]
+{
+  cms_cached::cms::active: Map(1 -> false, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "adminDeactivate",
+  mbt::nondetPicks: { a: None, u: Some(1) }
+}
+
+[State 7]
+{
+  cms_cached::cms::active: Map(1 -> false, 2 -> false),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "adminDeactivate",
+  mbt::nondetPicks: { a: None, u: Some(2) }
+}
+
+[State 8]
+{
+  cms_cached::cms::active: Map(1 -> false, 2 -> false),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 2, 2 -> 1),
+  cms_cached::cms::lastActionOk: false,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "publish",
+  mbt::nondetPicks: { a: Some(1), u: Some(2) }
+}
+
+[violation] Found an issue (29ms at 34 traces/second).
+Use --verbosity=3 to show executions.
+error: Invariant violated

@@ -1,0 +1,14 @@
+[package]
+name = "authz_spike"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+
+[lints.rust]
+# cfg(kani) is set by the Kani compiler when running `cargo kani`; plain
+# rustc/cargo test don't know about it, hence this check-cfg allowance.
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }
+
