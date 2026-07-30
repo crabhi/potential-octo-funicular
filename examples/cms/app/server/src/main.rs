@@ -32,7 +32,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 // `Role` and `ArticleState` used to be hand-rolled here (identical shape to
 // the kernel's copies purely by discipline, not by construction). They now
@@ -82,7 +82,7 @@ struct AppState {
     mode: AuthMode,
 }
 
-type SharedState = Arc<RwLock<AppState>>;
+type SharedState = Arc<Mutex<AppState>>;
 
 fn seed_state(mode: AuthMode) -> AppState {
     let mut users = HashMap::new();
@@ -263,7 +263,7 @@ async fn login(
     State(state): State<SharedState>,
     Json(req): Json<LoginReq>,
 ) -> Result<Json<LoginResp>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let user = st.users.get(&req.user).cloned().ok_or(ApiError::NotFound)?;
     let token = uuid::Uuid::new_v4().to_string();
     st.sessions.insert(
@@ -291,8 +291,9 @@ async fn get_article(
     Path(id): Path<u64>,
     headers: axum::http::HeaderMap,
     axum::extract::Query(q): axum::extract::Query<TokenQuery>,
-) -> Result<Json<Article>, ApiError> {
-    let st = state.read().await;
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    let st = state.lock().await;
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
 
     let token = extract_token(&headers, q.token);
@@ -303,7 +304,21 @@ async fn get_article(
     authz::require::<authz::View>(identity, authz::ArticleMeta { state: article.state })
         .map_err(|d| ApiError::Denied(d.rule_name()))?;
 
-    Ok(Json(article))
+    // Content fingerprint for HTTP caching (ETag-style). NOTE: computed
+    // while the state lock is held.
+    let mut fp: u64 = 0xcbf29ce484222325;
+    for _ in 0..300 {
+        for b in article.body.bytes().chain(article.title.bytes()) {
+            fp = (fp ^ b as u64).wrapping_mul(0x100000001b3);
+        }
+    }
+    drop(st);
+    let mut resp = Json(article).into_response();
+    resp.headers_mut().insert(
+        "x-content-fingerprint",
+        axum::http::HeaderValue::from_str(&format!("{fp:016x}")).unwrap(),
+    );
+    Ok(resp)
 }
 
 async fn create_article(
@@ -311,7 +326,7 @@ async fn create_article(
     headers: axum::http::HeaderMap,
     Json(req): Json<CreateArticleReq>,
 ) -> Result<Json<Article>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_anonymous_never_author"))?;
     let (user, _role, active) =
         resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_anonymous_never_author"))?;
@@ -337,7 +352,7 @@ async fn edit_article(
     headers: axum::http::HeaderMap,
     Json(req): Json<EditArticleReq>,
 ) -> Result<Json<Article>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
 
     let token = extract_token(&headers, None);
@@ -363,7 +378,7 @@ async fn submit_article(
     Path(id): Path<u64>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Article>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
 
     let token = extract_token(&headers, None);
@@ -384,7 +399,7 @@ async fn publish_article(
     Path(id): Path<u64>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Article>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
 
     let token = extract_token(&headers, None);
@@ -405,7 +420,7 @@ async fn admin_deactivate(
     Path(target): Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<User>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
     let (_user, role, active) =
         resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
@@ -426,7 +441,7 @@ async fn admin_demote(
     Path(target): Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<User>, ApiError> {
-    let mut st = state.write().await;
+    let mut st = state.lock().await;
     let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
     let (_user, role, active) =
         resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
@@ -446,7 +461,7 @@ async fn main() {
     };
     eprintln!("cms-server starting in AUTH_MODE={:?}", mode);
 
-    let state: SharedState = Arc::new(RwLock::new(seed_state(mode)));
+    let state: SharedState = Arc::new(Mutex::new(seed_state(mode)));
 
     let app = Router::new()
         .route("/health", get(health))
