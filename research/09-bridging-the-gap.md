@@ -9,7 +9,7 @@ dead ends explicitly. Not limited to Quint.
 | Track | Approach | Hypothesis | Falsifier | Status |
 |---|---|---|---|---|
 | A | **Closed repair loop** (`prototypes/p4-agent-loop/`): checker counterexample → headless `claude -p` (Sonnet) repairs → recheck; spec section frozen mechanically | An LLM given a machine-readable counterexample can repair a seeded protocol bug in ≤4 rounds without touching the invariants | Repairs fail, or converge only by weakening the spec (reverted+counted) | in progress |
-| B | **Trace validation** (`examples/cms/trace-validation/`): record real app actions, compile the log into a generated Quint run, `quint test` it — "was this a legal behavior of the model?" | Client-side action logs suffice to catch the cached-auth conformance violation from outside the app | The generated-run technique can't express real logs, or passes traces the model should reject | in progress |
+| B | **Trace validation** (`examples/cms/trace-validation/`): record real app actions, compile the log into a generated Quint run, `quint test` it — "was this a legal behavior of the model?" | Client-side action logs suffice to catch the cached-auth conformance violation from outside the app | The generated-run technique can't express real logs, or passes traces the model should reject | **WORKED** |
 | C | **Model-based test generation** (`examples/cms/mbt/`): Quint `--mbt` traces drive the real CMS API; assert acceptance parity model↔app | The generation direction (spec drives app) catches implementation divergence cheaper than trace checking (MongoDB's finding) | Mapping model actions→HTTP is too lossy to give a trustworthy verdict | in progress |
 | D | **Dafny: requirements → proven code** (`examples/cms/dafny-authz/`): the 10 CMS rules as Dafny postconditions on an `Authorize` function; prove; compile to Go; embed in a runnable program | A verified decision kernel can be generated from the same requirements and embedded in ordinary code — rung 5 without rewriting the app | Dafny proof or Go compilation is impractical here; or the kernel/app boundary leaks (the caller can still misuse it) | in progress |
 | E | **Kani proof spike** (`examples/cms/proof-spike/`): prove the Rust authorization decision satisfies the YAML rules for ALL inputs; compare against plain exhaustive enumeration | Kani is installable/usable here and adds value over exhaustive enumeration for finite domains | Install fails (env), or exhaustive enumeration is strictly simpler at equal assurance for this domain size | in progress |
@@ -27,4 +27,12 @@ dead ends explicitly. Not limited to Quint.
 
 ## Episode log
 
-(appended as results land)
+- **Track B result (2026-07-30): WORKED.** Legal live-mode session replays
+  as a passing generated Quint run; the cached-mode stale-token publish is
+  accepted by the app (200) but the model refuses the replayed step
+  (QNT508 at `.then(publishU(...))`) → conformance violation detected from
+  client-side logs only, no app instrumentation. Caveats recorded in the
+  track README: client-side logs ≠ server truth; single-threaded sessions
+  only; bare nondet admin actions replay deterministically only because
+  the 2-user universe makes guards uniquely satisfiable (parameterized
+  admin actions now exist in the model for the general case).

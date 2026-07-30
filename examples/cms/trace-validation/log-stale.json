@@ -1,0 +1,42 @@
+{
+  "scenario": "stale",
+  "accepted": [
+    {
+      "action": "loginU",
+      "args": {
+        "u": 2
+      }
+    },
+    {
+      "action": "loginU",
+      "args": {
+        "u": 1
+      }
+    },
+    {
+      "action": "submitReviewU",
+      "args": {
+        "u": 1,
+        "a": 1
+      }
+    },
+    {
+      "action": "adminDemote",
+      "args": {
+        "user": 2
+      }
+    },
+    {
+      "action": "publishU",
+      "args": {
+        "u": 2,
+        "a": 1
+      }
+    }
+  ],
+  "rejected": [],
+  "article_map": {
+    "1": 5,
+    "2": 6
+  }
+}

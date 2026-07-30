@@ -1,0 +1,28 @@
+
+  generated_trace_stale
+    1) traceReplayTest failed after 1 test(s)
+
+  1 failed
+
+  1) traceReplayTest:
+       Error [QNT508]: Cannot continue to "expect"
+        at /home/user/potential-octo-funicular/examples/cms/trace-validation/generated_trace_stale.qnt:4:25
+        4:   run traceReplayTest = init
+                                   ^^^^
+        5:     .then(loginU(2))
+           ^^^^^^^^^^^^^^^^^^^^
+        6:     .then(loginU(1))
+           ^^^^^^^^^^^^^^^^^^^^
+        7:     .then(submitReviewU(1, 1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        8:     .then(adminDemote)  // target (from log, informational only): {'user': 2}
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        9:     .then(publishU(2, 1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        10:     .expect(lastActionOk)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    Use --seed=0x16eff2e05969fb --match=traceReplayTest to repeat.
+
+
+  Use --verbosity=3 to show executions.
+  Further debug with: quint test --verbosity=3 generated_trace_stale.qnt
