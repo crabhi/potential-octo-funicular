@@ -42,6 +42,7 @@ falsified two protocol designs a careful engineer believed correct
 | `prototypes/p1-migration-model/` | Quint model: online migration + concurrent requests under snapshot isolation | `./check.sh` |
 | `prototypes/p2-invariant-oracle/` | Z3 oracle: contradictions, witnesses, vacuity, claim verdicts | `./demo.sh` |
 | `prototypes/p3-conformance-harness/` | Rust API ×2 versions + Postgres + live migration under concurrent load | `./run_demo.sh` |
+| `examples/cms/` | **Worked example**: a CMS (roles, drafts, public access) guarded by the full pipeline — rules → oracle → model → real app | see its README |
 
 ## Prerequisites
 

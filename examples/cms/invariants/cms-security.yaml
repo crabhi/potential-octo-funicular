@@ -1,0 +1,98 @@
+# CMS security requirements, as typed invariants (P2 oracle format).
+#
+# The schema describes one access decision: a viewer (with a role, an
+# activity flag, and an author relationship to the article) asking to
+# view / edit / publish an article in some lifecycle state.
+#
+# Each `description` is the original stakeholder sentence; the formula is
+# its formal translation (LLM-drafted, developer-reviewed).
+
+variables:
+  viewer_role:
+    type: enum
+    values: [anonymous, author, editor, admin]
+  viewer_is_author:
+    type: bool          # the viewer wrote this article
+  viewer_active:
+    type: bool          # account not deactivated
+  article_state:
+    type: enum
+    values: [draft, in_review, published, archived]
+  can_view:
+    type: bool
+  can_edit:
+    type: bool
+  can_publish:
+    type: bool
+  session_ttl_minutes:
+    type: int
+    min: 0
+    max: 1440
+
+invariants:
+  - name: inv_published_is_public
+    description: >-
+      Published articles are publicly readable by everyone, including
+      logged-out visitors.
+    formula: "implies(article_state == \"published\", can_view)"
+
+  - name: inv_anonymous_published_only
+    description: >-
+      Anonymous visitors can read published articles and nothing else.
+    formula: >-
+      implies(viewer_role == "anonymous" and can_view,
+      article_state == "published")
+
+  - name: inv_draft_visibility
+    description: >-
+      A draft is visible only to its author, editors, and admins.
+    formula: >-
+      implies(article_state == "draft" and can_view,
+      viewer_is_author or viewer_role == "editor" or viewer_role == "admin")
+
+  - name: inv_publish_staff_only
+    description: >-
+      Only editors and admins may publish.
+    formula: >-
+      implies(can_publish,
+      viewer_role == "editor" or viewer_role == "admin")
+
+  - name: inv_publish_from_review_only
+    description: >-
+      An article can only be published out of the in-review state — never
+      straight from draft.
+    formula: "implies(can_publish, article_state == \"in_review\")"
+
+  - name: inv_edit_rights
+    description: >-
+      Editing requires being the author, an editor, or an admin.
+    formula: >-
+      implies(can_edit,
+      viewer_is_author or viewer_role == "editor" or viewer_role == "admin")
+
+  - name: inv_authors_edit_unpublished_only
+    description: >-
+      Authors may edit their articles only before publication (draft or
+      in-review); after that, changes go through an editor.
+    formula: >-
+      implies(can_edit and viewer_role == "author",
+      article_state == "draft" or article_state == "in_review")
+
+  - name: inv_deactivated_does_nothing
+    description: >-
+      A deactivated account can neither edit nor publish anything.
+    formula: >-
+      implies(not viewer_active, (not can_edit) and (not can_publish))
+
+  - name: inv_archived_not_public
+    description: >-
+      Archived articles are kept for staff reference and are not publicly
+      accessible.
+    formula: >-
+      implies(article_state == "archived" and can_view,
+      viewer_role != "anonymous")
+
+  - name: inv_anonymous_never_author
+    description: >-
+      An anonymous visitor is by definition not the author of anything.
+    formula: "implies(viewer_role == \"anonymous\", not viewer_is_author)"

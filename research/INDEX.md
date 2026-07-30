@@ -14,6 +14,9 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [07-synthesis.md](07-synthesis.md) | Cross-cutting synthesis: candidate architectures & recommendation | draft |
 | [08-workflow-vision.md](08-workflow-vision.md) | Holistic workflow: roles, contract, novelty, adoption path | draft |
 
+Worked examples live under `examples/` (currently: `examples/cms/` — a CMS
+guarded by the full pipeline; its README is the workflow narrative).
+
 ## Change log
 
 - 2026-07-30: repo created; brief written; research agents dispatched for notes 01–06.
