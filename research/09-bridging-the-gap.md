@@ -25,7 +25,7 @@ become type errors instead of conventions.
 
 | Track | Approach | Hypothesis | Falsifier | Status |
 |---|---|---|---|---|
-| F | **Gate-strengthened repair loop**: add frozen feature runs (adversarial stale-row recovery, happy path) + completion-reachability witness to P4's gate; re-run the episode from the original double-bug protocol with the SAME generic prompt | The strengthened gate alone forces the full fix (episode 1's partial fix gets rejected mechanically) | The repairer stalls, or games the gate some third way the runs don't cover | in progress |
+| F | **Gate-strengthened repair loop**: add frozen feature runs (adversarial stale-row recovery, happy path) + completion-reachability witness to P4's gate; re-run the episode from the original double-bug protocol with the SAME generic prompt | The strengthened gate alone forces the full fix (episode 1's partial fix gets rejected mechanically) | The repairer stalls, or games the gate some third way the runs don't cover | **WORKED** — full fix in 1 round; controlled comparison in P4 README |
 | G | **Type-enforced kernel boundary** (`examples/cms/`): protected app operations require a `Grant<Op>` token only the verified kernel can mint | Bypassing the kernel becomes a compile error, with the app harness and kernel proofs staying green | The typestate refactor breaks the app/race semantics, or meaningful checks can't be tokenized | in progress |
 
 ## Ground rules (from 07/08)

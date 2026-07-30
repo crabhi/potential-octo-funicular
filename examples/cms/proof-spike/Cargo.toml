@@ -4,8 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Added for the app/server boundary refactor (research/09, Track D
+# follow-up): Role/ArticleState now cross the process boundary as JSON in
+# the running app, so the kernel's own types need to carry the derives
+# instead of the app hand-rolling parallel copies. Additive only --
+# `authorize()` and the rule predicates are unchanged; see proof-spike/README.md
+# "Track D follow-up" for what was/was not re-verified.
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
+# Compile-fail regression test for the `authz` sealed-Grant boundary (see
+# src/authz.rs and tests/compile_fail.rs).
+trybuild = "1"
 
 [lints.rust]
 # cfg(kani) is set by the Kani compiler when running `cargo kani`; plain

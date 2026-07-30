@@ -72,8 +72,42 @@ The migration is safe but no longer guaranteed to complete.
 The safety-only gate accepted a fix that traded away liveness — precisely
 the failure mode predicted in `research/08` ("the safest system does
 nothing") and in the CMS features work. The checker did its job; the gate
-was underspecified. Lesson, now demonstrated empirically inside the loop:
-**repair gates need liveness/feature properties alongside safety**
-(here: "the migration can always still complete", a temporal property
-under fairness — Quint/Apalache support temporal checking; wiring it into
-the loop is the next iteration of this prototype).
+was underspecified. Lesson: **repair gates need liveness/feature
+properties alongside safety** — tested immediately in episode 2.
+
+### ep-20260730-194946 — same bug, same model, same prompt, STRONGER GATE
+
+For episode 2 the protocol was reset to the original double-bug state and
+the frozen gate was extended with feature/liveness checks (see the
+`Feature/liveness gate` section of `protocol/migration.qnt`):
+- `staleRowRecoveryTest` — an adversarial scripted run: a row goes stale
+  during the rolling window; after drain, the migration machinery alone
+  must still repair it and reach the switch;
+- `happyPathTest` — the plain migration must still complete;
+- `featDone` — completion must stay reachable in random exploration.
+
+The repair prompt was NOT changed — no hint about the bug or the fix was
+added. Result:
+
+```
+round 1: violation found (FEATURE GATE FAILED: staleRowRecoveryTest)
+round 2: GREEN — feature runs pass, 30k traces clean, Apalache NoError
+```
+
+One round, and this time the repairer produced the **full fix**: backfill
+criterion `N != O` (re-copy out-of-sync rows) *and* switch gate `N == O`.
+Final state: both feature runs green, 10k-trace safety clean, completion
+witnessed in 84% of random traces, symbolic verification NoError.
+
+**The controlled comparison** (only the gate differs):
+
+| | episode 1 | episode 2 |
+|---|---|---|
+| gate | safety invariants only | + feature runs + completion witness |
+| feedback to repairer | safety counterexample (ITF) | failing required-behavior run |
+| outcome | sound but partial fix; latent liveness regression accepted | full fix, one round |
+
+Zero prompt engineering separates the two outcomes. This is the project's
+core claim made empirical: with LLM repairers, **invest in gate strength,
+not in natural-language steering** — the gate is what the system actually
+optimizes toward.

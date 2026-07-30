@@ -21,7 +21,17 @@
 //!   - `publish_article` (publish), lines 410-419 — the active check, the
 //!     editor/admin gate, and the in-review-only gate.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// `Serialize`/`Deserialize` derives added for the app/server boundary
+// refactor (research/09-bridging-the-gap.md, Track D follow-up): main.rs
+// used to hand-roll its own copies of these two enums (identical shape) so
+// it had *something* to serve over HTTP JSON. Now that main.rs imports
+// these directly (see app/server/src/main.rs, `use authz_spike::{...}`),
+// they need to speak the same wire format the app's JSON API already
+// committed to (`#[serde(rename_all = "snake_case")]`, e.g. "in_review").
+// This is additive/annotation-only -- no variant, no match arm, no function
+// body changed. See proof-spike/README.md for what was and wasn't re-run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Role {
     Anonymous,
     Author,
@@ -29,7 +39,8 @@ pub enum Role {
     Admin,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ArticleState {
     Draft,
     InReview,
@@ -43,6 +54,12 @@ pub struct Perms {
     pub edit: bool,
     pub publish: bool,
 }
+
+/// The boundary API: sealed capability tokens (`Grant<Op>`) that turn "the
+/// app consulted this kernel before performing a protected operation" from
+/// a convention into a compile error. See `authz.rs` module docs for the
+/// full design and `tests/compile_fail.rs` for the actual compiler error.
+pub mod authz;
 
 /// The decision core. Faithful port of the app's `live`-mode behavior:
 /// role/is_author/active are whatever the caller currently is (no stale
@@ -121,6 +138,24 @@ pub fn authorize_buggy_missing_active_check(
 /// technique.
 pub fn authorize_by_id(role: Role, active: bool, state: ArticleState, viewer_id: u64, author_id: u64) -> Perms {
     authorize(role, viewer_id == author_id, active, state)
+}
+
+/// Submit (draft -> in_review): main.rs 384-395 (pre-refactor line numbers)
+/// -- the active gate, the ownership gate (only the author may submit their
+/// own work), and the draft-only gate (can't submit something already
+/// in_review/published/archived).
+///
+/// Not one of the 10 YAML rules in `cms-security.yaml` -- "submit" is a
+/// workflow transition, not one of the three access verbs (view/edit/
+/// publish) the rule set speaks about -- so this isn't part of `authorize`/
+/// `Perms`/`ALL_RULES` and isn't Kani-proven. It's a 3-input boolean AND,
+/// exhaustively checked below (16 points) purely as cheap insurance against
+/// a future edit changing its meaning; that's a much weaker guarantee than
+/// the 9 proven rules and the README says so plainly. The app's `authz`
+/// wrapper (`authz.rs`) reuses `inv_edit_rights` / `inv_publish_from_review_only`
+/// as its denial vocabulary, exactly matching the pre-refactor app.
+pub fn can_submit(is_author: bool, active: bool, state: ArticleState) -> bool {
+    active && is_author && matches!(state, ArticleState::Draft)
 }
 
 // =====================================================================
@@ -432,6 +467,31 @@ mod tests {
         // denies Published/Archived even in the buggy version) = 2.
         // Total = 16 + 2 = 18.
         assert_eq!(violations, 18);
+    }
+
+    /// `can_submit` is a 3-input boolean (2 x 2 x 4 = 16 points) -- cheap
+    /// enough to check exhaustively even though (unlike the 9 `ALL_RULES`)
+    /// it isn't backed by a named YAML invariant or a Kani harness. This is
+    /// intentionally the *weaker* tier of guarantee the README calls out.
+    #[test]
+    fn exhaustive_can_submit_matches_spec() {
+        const STATES: [ArticleState; 4] =
+            [ArticleState::Draft, ArticleState::InReview, ArticleState::Published, ArticleState::Archived];
+        let mut checked = 0usize;
+        for is_author in [false, true] {
+            for active in [false, true] {
+                for state in STATES {
+                    checked += 1;
+                    let got = can_submit(is_author, active, state);
+                    let expected = is_author && active && matches!(state, ArticleState::Draft);
+                    assert_eq!(
+                        got, expected,
+                        "can_submit(is_author={is_author}, active={active}, {state:?}) = {got}, expected {expected}"
+                    );
+                }
+            }
+        }
+        assert_eq!(checked, 16);
     }
 
     /// Timing data point for the README's crossover argument: a *bounded*

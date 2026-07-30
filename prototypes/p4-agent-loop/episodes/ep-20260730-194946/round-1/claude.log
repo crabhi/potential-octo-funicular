@@ -1,0 +1,7 @@
+I identified the bug: `backfillBeginU`'s "needs backfill" criterion used `dbN.get(k) == NULL`, which treats any row that already has *some* N value as done — even if that N value is stale (overwritten in O by a lagging v1 instance during the rolling-upgrade window before drain completes). That's why the stale row from the recovery scenario could never be picked up by backfill.
+
+Fix (both are action-only edits, nothing below the frozen line changed):
+- `backfillBeginU`: guard is now `dbN.get(k) != dbO.get(k)` — a row needs (re-)backfill whenever O and N disagree, not just when N is empty. This correctly captures both "never touched" and "went stale" cases.
+- `switchRead`: guard tightened from `dbN.get(k) != NULL` to `dbN.get(k) == dbO.get(k)` — the switch now requires actual O/N agreement, which is a strict strengthening (dbO is never NULL) so it can only reinforce `invColumnsAgree`/`invBackfillDoneAtSwitch`, never weaken them.
+
+Traced both scripted runs by hand against the new guards: `staleRowRecoveryTest`'s stale row (O=2, N=1 after the v1 overwrite) now triggers `backfillBeginU(1)` since `2 != 1`, backfill commits it to agreement, and `switchRead` succeeds; `happyPathTest` still goes through unchanged since `0 != NULL(-1)` triggered backfill the same way the old guard did.
