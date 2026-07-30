@@ -13,11 +13,18 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [06-llm-formal-methods.md](06-llm-formal-methods.md) | LLM x formal methods: spec synthesis, verified codegen, agent loops | draft |
 | [07-synthesis.md](07-synthesis.md) | Cross-cutting synthesis: candidate architectures & recommendation | draft |
 | [08-workflow-vision.md](08-workflow-vision.md) | Holistic workflow: roles, contract, novelty, adoption path | draft |
+| [09-bridging-the-gap.md](09-bridging-the-gap.md) | M4 phase log: five bridge tracks, scoreboard, episode results | living |
 
 Worked examples live under `examples/` (currently: `examples/cms/` — a CMS
 guarded by the full pipeline; its README is the workflow narrative).
 
 ## Change log
+
+- 2026-07-30 (M4 phase 1): five bridge tracks executed in parallel — A repair
+  loop WORKED (1 round, exposed safety-only-gate liveness gap), B trace
+  validation WORKED, C model-based testing WORKED (240/240 parity, 6/6
+  divergences), D Dafny proven-kernel-to-Go WORKED, E Kani spike: exhaustive
+  wins at finite domains, Kani at unbounded — see 09-bridging-the-gap.md.
 
 - 2026-07-30: repo created; brief written; research agents dispatched for notes 01–06.
 - 2026-07-30: 06-llm-formal-methods.md drafted.

@@ -14,19 +14,7 @@ An example execution:
 
 [State 1]
 {
-  cms_cached::cms::active: Map(1 -> true, 2 -> false),
-  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
-  cms_cached::cms::lastActionOk: true,
-  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
-  cms_cached::cms::sess: Map(1 -> (false, 1, false), 2 -> (false, 1, false)),
-  mbt::actionTaken: "adminDeactivate",
-  mbt::nondetPicks: { a: None, u: Some(2) }
-}
-
-[State 2]
-{
-  cms_cached::cms::active: Map(1 -> true, 2 -> false),
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
   cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
   cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
   cms_cached::cms::lastActionOk: true,
@@ -36,15 +24,27 @@ An example execution:
   mbt::nondetPicks: { a: None, u: Some(1) }
 }
 
+[State 2]
+{
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
+  cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
+  cms_cached::cms::lastActionOk: true,
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
+  mbt::actionTaken: "submitReview",
+  mbt::nondetPicks: { a: Some(2), u: Some(1) }
+}
+
 [State 3]
 {
-  cms_cached::cms::active: Map(1 -> true, 2 -> false),
+  cms_cached::cms::active: Map(1 -> true, 2 -> true),
   cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
   cms_cached::cms::lastActionOk: true,
-  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
-  mbt::actionTaken: "adminDemote",
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "login",
   mbt::nondetPicks: { a: None, u: Some(2) }
 }
 
@@ -52,22 +52,22 @@ An example execution:
 {
   cms_cached::cms::active: Map(1 -> true, 2 -> false),
   cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
   cms_cached::cms::lastActionOk: true,
-  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
-  mbt::actionTaken: "login",
-  mbt::nondetPicks: { a: None, u: Some(1) }
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "adminDeactivate",
+  mbt::nondetPicks: { a: None, u: Some(2) }
 }
 
 [State 5]
 {
   cms_cached::cms::active: Map(1 -> false, 2 -> false),
   cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::artState: Map(1 -> 0, 2 -> 0),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 1),
   cms_cached::cms::lastActionOk: true,
-  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
   mbt::actionTaken: "adminDeactivate",
   mbt::nondetPicks: { a: None, u: Some(1) }
 }
@@ -76,14 +76,14 @@ An example execution:
 {
   cms_cached::cms::active: Map(1 -> false, 2 -> false),
   cms_cached::cms::artAuthor: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::artState: Map(1 -> 1, 2 -> 0),
+  cms_cached::cms::artState: Map(1 -> 0, 2 -> 2),
   cms_cached::cms::lastActionOk: false,
-  cms_cached::cms::role: Map(1 -> 1, 2 -> 1),
-  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (false, 1, false)),
-  mbt::actionTaken: "submitReview",
-  mbt::nondetPicks: { a: Some(1), u: Some(1) }
+  cms_cached::cms::role: Map(1 -> 1, 2 -> 2),
+  cms_cached::cms::sess: Map(1 -> (true, 1, true), 2 -> (true, 2, true)),
+  mbt::actionTaken: "publish",
+  mbt::nondetPicks: { a: Some(2), u: Some(2) }
 }
 
-[violation] Found an issue (31ms at 97 traces/second).
+[violation] Found an issue (33ms at 91 traces/second).
 Use --verbosity=3 to show executions.
 error: Invariant violated
