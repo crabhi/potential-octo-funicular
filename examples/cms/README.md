@@ -83,6 +83,28 @@ The ghost variable pattern makes this checkable with one invariant:
 `lastActionOk` — "every committed action was permitted by the live policy
 at the moment it committed."
 
+**Features live in the model too — not just safety.** Safety invariants
+alone are gameable: a CMS that rejects every request satisfies all of them
+vacuously (an optimizing agent would happily "fix" bugs that way). The
+model therefore also specifies what must *work*:
+
+- `run publishLifecycleTest` — a scripted scenario (author drafts &
+  submits, editor publishes, article ends published with no policy
+  violation) that `quint test` must be able to execute end to end; the
+  model-level acceptance test.
+- `featSubmitted` / `featPublished` — reachability witnesses: random
+  exploration reports how many traces exercise each feature (currently 28%
+  and 1.3% of 3,000 traces). If a guard change makes a feature
+  unreachable, the witness count dropping to 0 is the tripwire.
+- Temporal liveness ("every submitted article is eventually decided") is
+  the third level — expressible in Quint/TLA+, needs fairness assumptions;
+  planned once safety + possibility layers are stable.
+
+Note the complementarity: the happy-path feature test passes in **both**
+configurations — features don't catch the stale-session race, and the
+safety invariant doesn't catch a feature quietly dying. The gate for an
+agent needs both directions.
+
 ## Rung 3 — the real system (`app/`)
 
 A small Rust (axum) CMS with exactly these roles and lifecycle, plus a

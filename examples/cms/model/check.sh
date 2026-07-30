@@ -18,6 +18,14 @@ quint run cms.qnt --main cms_cached --invariant invAll \
 # a reproducible seed for the deactivated-author trace:
 #   --seed 0x141c88dab83c39
 
+echo "== feature test: editorial workflow must remain possible =="
+quint test cms.qnt --main cms_live --backend typescript
+
+echo "== feature coverage witnesses (random exploration reaches the features) =="
+quint run cms.qnt --main cms_live --invariant invAll \
+  --witnesses featSubmitted featPublished \
+  --backend typescript --max-samples 3000 --max-steps 20
+
 echo "== symbolic verify (Apalache), live (expect: NoError) =="
 quint verify cms.qnt --main cms_live --invariant invAll --max-steps 10
 

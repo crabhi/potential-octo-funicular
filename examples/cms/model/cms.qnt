@@ -57,13 +57,15 @@ module cms {
   }
 
   // Logging in snapshots the user's role and active flag into the session.
+  action loginU(u: int): bool = all {
+    active.get(u),
+    sess' = sess.set(u, (true, role.get(u), active.get(u))),
+    keepUsers, keepArts, keepOk,
+  }
+
   action login = {
     nondet u = USERS.oneOf()
-    all {
-      active.get(u),
-      sess' = sess.set(u, (true, role.get(u), active.get(u))),
-      keepUsers, keepArts, keepOk,
-    }
+    loginU(u)
   }
 
   // Admin actions — can happen at any moment, concurrent with sessions.
@@ -95,45 +97,49 @@ module cms {
     if (CHECK_AT_ACTION) active.get(u) else sess.get(u)._3
 
   // An author submits their own draft for review.
+  action submitReviewU(u: int, a: int): bool = all {
+    sess.get(u)._1,
+    effActive(u),
+    artAuthor.get(a) == u,
+    artState.get(a) == DRAFT,
+    artState' = artState.set(a, IN_REVIEW),
+    artAuthor' = artAuthor,
+    // ghost: was this allowed by the LIVE policy at commit time?
+    lastActionOk' = and {
+      lastActionOk,
+      active.get(u),
+      artAuthor.get(a) == u,
+    },
+    keepUsers, keepSess,
+  }
+
   action submitReview = {
     nondet u = USERS.oneOf()
     nondet a = ARTICLES.oneOf()
-    all {
-      sess.get(u)._1,
-      effActive(u),
-      artAuthor.get(a) == u,
-      artState.get(a) == DRAFT,
-      artState' = artState.set(a, IN_REVIEW),
-      artAuthor' = artAuthor,
-      // ghost: was this allowed by the LIVE policy at commit time?
-      lastActionOk' = and {
-        lastActionOk,
-        active.get(u),
-        artAuthor.get(a) == u,
-      },
-      keepUsers, keepSess,
-    }
+    submitReviewU(u, a)
   }
 
   // An editor publishes an article that is in review.
+  action publishU(u: int, a: int): bool = all {
+    sess.get(u)._1,
+    effRole(u) == EDITOR,
+    effActive(u),
+    artState.get(a) == IN_REVIEW,
+    artState' = artState.set(a, PUBLISHED),
+    artAuthor' = artAuthor,
+    // live policy: publisher must currently be an active editor
+    lastActionOk' = and {
+      lastActionOk,
+      role.get(u) == EDITOR,
+      active.get(u),
+    },
+    keepUsers, keepSess,
+  }
+
   action publish = {
     nondet u = USERS.oneOf()
     nondet a = ARTICLES.oneOf()
-    all {
-      sess.get(u)._1,
-      effRole(u) == EDITOR,
-      effActive(u),
-      artState.get(a) == IN_REVIEW,
-      artState' = artState.set(a, PUBLISHED),
-      artAuthor' = artAuthor,
-      // live policy: publisher must currently be an active editor
-      lastActionOk' = and {
-        lastActionOk,
-        role.get(u) == EDITOR,
-        active.get(u),
-      },
-      keepUsers, keepSess,
-    }
+    publishU(u, a)
   }
 
   action step = any {
@@ -159,6 +165,39 @@ module cms {
     artState.get(a) != PUBLISHED or artAuthor.get(a).in(USERS))
 
   val invAll = and { invNoUnauthorizedActions, invPublishRequiresReview }
+
+  // ---- Features (must-work properties) -----------------------------------
+  //
+  // Safety invariants alone are gameable: a CMS that rejects every request
+  // satisfies all of them vacuously. Features pin down the "must still
+  // work" side, so an optimizing agent cannot trade functionality for
+  // safety. Three forms, increasing in strength:
+  //
+  // 1. Scripted runs (below): a concrete usage scenario that must remain
+  //    executable end to end — the model-level analogue of an acceptance
+  //    test. `quint test` fails if any step is rejected or the expectation
+  //    doesn't hold.
+  // 2. Witnesses (below): state predicates whose reachability is measured
+  //    across random traces — feature coverage, and a tripwire against
+  //    guards so strict the feature becomes unreachable.
+  // 3. Temporal liveness (not used here): "every submitted article is
+  //    eventually decided" — needs fairness assumptions; the natural next
+  //    step once the safety+possibility layers are stable.
+
+  // F1: the core editorial workflow must work: an author drafts and
+  // submits; an editor reviews and publishes; the article ends published
+  // with no live-policy violation along the way.
+  run publishLifecycleTest = init
+    .then(loginU(ALICE))
+    .then(submitReviewU(ALICE, 1))
+    .then(loginU(EVE))
+    .then(publishU(EVE, 1))
+    .expect(artState.get(1) == PUBLISHED and lastActionOk)
+
+  // F2/F3: reachability witnesses — random exploration must be able to
+  // exercise the review and publish features at all.
+  val featSubmitted = ARTICLES.exists(a => artState.get(a) == IN_REVIEW)
+  val featPublished = ARTICLES.exists(a => artState.get(a) == PUBLISHED)
 }
 
 // Authorization re-checked live on every action: safe.

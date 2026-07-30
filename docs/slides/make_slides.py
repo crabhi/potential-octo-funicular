@@ -479,6 +479,80 @@ y = bullets(40, 250, [
 ], 880, size=12, gap=8)
 footer(); c.showPage()
 
+# ------------------------------------------------------ features slide
+header("Beyond safety", "Features live in the model too")
+text_block(40, H - 108,
+           "Safety invariants alone are gameable: a CMS that rejects every request satisfies all of them vacuously — "
+           "an optimizing agent would happily “fix” bugs that way. So the model also specifies what must WORK, "
+           "at three levels of strength (the first two run in examples/cms/model today):",
+           size=12.5, width=880)
+feat_panels = [
+    ("1 · Scripted scenarios", OK,
+     "run publishLifecycleTest: author drafts and submits, editor publishes, article ends "
+     "published, no policy violation on the way. A model-level acceptance test — `quint test` "
+     "fails the build if any step becomes impossible."),
+    ("2 · Reachability witnesses", ACCENT_D,
+     "featSubmitted / featPublished: how many random traces exercise each feature — currently "
+     "28% and 1.3% of 3,000. Feature coverage for the model, and a tripwire: a guard change "
+     "that kills a feature drops its witness count to zero."),
+    ("3 · Temporal liveness", MUTED,
+     "“Every submitted article is eventually published or returned.” Expressible in "
+     "Quint/TLA+, needs fairness assumptions — the natural next level once safety and "
+     "possibility are stable. Not yet wired in."),
+]
+x = 40
+for t, col, b in feat_panels:
+    panel(x, 210, 285, 180)
+    c.setFont(FB, 12.5)
+    c.setFillColor(col)
+    c.drawString(x + 14, 364, t)
+    text_block(x + 14, 342, b, size=10.6, width=257)
+    x += 305
+y = bullets(40, 178, [
+    "Measured complementarity: the happy-path feature test passes in BOTH configurations — features don't catch the stale-session race, and the safety invariant doesn't catch a feature quietly dying. An agent gate needs both directions.",
+    "The rule layer has a static analogue: a claim query staying SATISFIABLE/VALID is a feature check — the “editor can review drafts” INVALID verdict on slide 11 was exactly a feature regression, caught by a solver.",
+], 880, size=11.5, gap=7)
+footer(); c.showPage()
+
+# --------------------------------------------- code-vs-model guarantee slide
+header("The honest question", "What guarantees the code matches the model?")
+text_block(40, H - 108,
+           "By default: nothing. Model and code are separate artifacts, and drift between them is the best-documented "
+           "failure mode in industrial formal methods. The guarantee is not found — it is BUILT, as a ladder where each "
+           "rung narrows the gap and costs more than the one below:",
+           size=12.5, width=880)
+rungs = [
+    ("5 · Proofs in / code from the spec",
+     "Verify the implementation itself (Rust+Verus, Dafny) or generate code + logging from the model (TraceLink/PGo style). The only true guarantees — bought selectively, for the riskiest code.",
+     "proof", INK),
+    ("4 · Trace validation",
+     "Log the running system in the model's vocabulary; replay the log against the model: “is this a legal behavior?” Strongest black-box link — must be designed in from day one, not retrofitted (MongoDB's 10-week lesson).",
+     "strong evidence", ACCENT_D),
+    ("3 · Design-twin knobs & replayed counterexamples",
+     "The model's CHECK_AT_ACTION and the app's AUTH_MODE are the same decision; the model's counterexample became a real HTTP test and reproduced 2/2. Every model finding becomes a regression test.",
+     "evidence", ACCENT_D),
+    ("2 · Spec-derived tests against the real system",
+     "Property/generated tests assert the same invariants over live traffic (migration harness: 735 requests, 0 errors; CMS policy suite 5/5). Samples behavior — high value, no proof.",
+     "evidence", ACCENT_D),
+    ("1 · Shared vocabulary",
+     "One set of invariant names flows from tickets to rules to model to the app's 403 bodies. Proves nothing alone — but makes every failure at any rung traceable to a requirement.",
+     "traceability", MUTED),
+]
+yy = H - 170
+for t, b, tag, col in rungs:
+    panel(40, yy - 52, 880, 52)
+    c.setFont(FB, 10.5)
+    c.setFillColor(col)
+    c.drawString(54, yy - 18, t)
+    chip(775, yy - 22, tag, color=col)
+    text_block(54, yy - 32, b, size=9.2, width=705)
+    yy -= 57
+text_block(40, 60,
+           "Assurance is a dial, not a boolean — and the agent loop re-runs rungs 1–4 on every edit, so drift is "
+           "caught the moment it is introduced, not years later in an incident review.",
+           size=11, width=880, color=ACCENT_D)
+footer(); c.showPage()
+
 # ---------------------------------------------------------------- slide 10
 header("Novelty", "What's new here")
 y = bullets(40, H - 120, [
