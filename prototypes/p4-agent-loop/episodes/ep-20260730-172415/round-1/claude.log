@@ -1,0 +1,3 @@
+The fix: `switchRead` now requires `dbN.get(k) == dbO.get(k)` for all keys instead of just `dbN.get(k) != NULL`.
+
+Root cause: a v2 instance's dual-write can set N for a key while other instances are still v1; a still-v1 instance can then write O for that same key afterward, updating only O. This leaves N non-null but stale. The old guard treated "N has been touched" as "backfill done," letting the switch proceed on stale data. Requiring actual O/N equality is the real criterion for cutover — once all instances are v2 (already required) and O/N agree, no future write can reintroduce divergence, since only `appWriteV2` (which updates both together) remains possible.
