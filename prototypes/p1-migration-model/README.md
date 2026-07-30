@@ -7,6 +7,17 @@ app instances serve concurrent reads and writes**, under snapshot isolation.
 This is pipeline step 4 of the brief (model check the design) and doubles as
 a worked example for step 3 (the checker surfacing "unexpected outcomes").
 
+## Prerequisites & quickstart
+
+```bash
+npm install -g @informalsystems/quint   # Quint CLI (>= 0.32)
+./check.sh                              # typecheck + simulate + verify, both configs
+```
+
+`quint verify` needs a JVM (Apalache is fetched automatically on first use).
+If the Rust simulator backend can't be downloaded in your environment, the
+scripts already pass `--backend typescript`, which needs nothing extra.
+
 ## What is modeled
 
 - **F1-style column states** (`Absent → WriteOnly → Present`,

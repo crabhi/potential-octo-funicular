@@ -12,6 +12,7 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [05-db-migrations-concurrency.md](05-db-migrations-concurrency.md) | Formalizing online schema migrations + concurrent requests | draft |
 | [06-llm-formal-methods.md](06-llm-formal-methods.md) | LLM x formal methods: spec synthesis, verified codegen, agent loops | draft |
 | [07-synthesis.md](07-synthesis.md) | Cross-cutting synthesis: candidate architectures & recommendation | draft |
+| [08-workflow-vision.md](08-workflow-vision.md) | Holistic workflow: roles, contract, novelty, adoption path | draft |
 
 ## Change log
 
@@ -22,4 +23,5 @@ Keep this file current: one line per note, newest changes noted in the log.
 - 2026-07-30: M2 decided — P1+P2+P3, Quint, Rust app, snapshot isolation (see 00-project-brief.md Decisions). Prototype work started under prototypes/.
 - 2026-07-30: P1 done (prototypes/p1-migration-model/) — Quint model of expand/contract + concurrent requests under SI. The checker falsified two successive "correct" protocol versions (drain guard only at backfill; IS NULL backfill criterion) before the third passed simulation + Apalache. See P1 README.
 - 2026-07-30: P2 done (prototypes/p2-invariant-oracle/) — Z3-backed CLI: check/witness/vacuity/claim with unsat cores and Bedrock-style verdicts; 15 tests green.
+- 2026-07-30: ease-of-use pass — root README (repo entry point), P2 demo.sh, P1 prerequisites section; 08-workflow-vision.md added (holistic framing for slides/review).
 - 2026-07-30: P3 done (prototypes/p3-conformance-harness/) — Rust axum API x2 versions + Postgres + trigger-based expand/contract migration under concurrent load; found & fixed a real TOCTOU race at contract cutover; negative test reproduces the no-drain anomaly (59 errors/run). M3 complete.
