@@ -20,6 +20,12 @@ guarded by the full pipeline; its README is the workflow narrative).
 
 ## Change log
 
+- 2026-07-30 (M4 phase 2, "strong guarantees over NL guidance"): Track F —
+  gate-strengthened repair loop forces the full fix in 1 round with an
+  unchanged generic prompt (controlled comparison vs episode 1); Track G —
+  authorization kernel boundary is now a compile error (Grant<Op> capability
+  tokens), harness and proofs unchanged. See 09-bridging-the-gap.md.
+
 - 2026-07-30 (M4 phase 1): five bridge tracks executed in parallel — A repair
   loop WORKED (1 round, exposed safety-only-gate liveness gap), B trace
   validation WORKED, C model-based testing WORKED (240/240 parity, 6/6

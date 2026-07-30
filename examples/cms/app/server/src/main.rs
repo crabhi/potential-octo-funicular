@@ -20,6 +20,8 @@
 // That name is the machine-readable counterexample hook the Python harness
 // asserts against.
 
+use authz_spike::authz;
+use authz_spike::{ArticleState, Role};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -32,23 +34,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum Role {
-    Anonymous,
-    Author,
-    Editor,
-    Admin,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum ArticleState {
-    Draft,
-    InReview,
-    Published,
-    Archived,
-}
+// `Role` and `ArticleState` used to be hand-rolled here (identical shape to
+// the kernel's copies purely by discipline, not by construction). They now
+// come straight from the verified kernel crate (`authz_spike`, aka
+// `examples/cms/proof-spike`) -- one less place for the two to drift, and
+// the type the app's handlers are checked against is *the same type* the
+// kernel's `authorize()`/Kani proofs were run against, not a look-alike.
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct User {
@@ -201,6 +192,28 @@ fn resolve_identity(state: &AppState, token: &str) -> Option<(String, Role, bool
     }
 }
 
+// The acting principal for a request, folded to Anonymous when there's no
+// token or the token doesn't resolve to a session. This -- along with
+// `resolve_identity` above -- is identity-*resolution* code: it decides
+// *which* snapshot of a user's role/active flag to trust (the AUTH_MODE
+// knob), not *whether* that role/active/state combination is allowed to do
+// anything. That second question is the kernel's (`authz::require`), not
+// this function's. `boundary_lint.sh` does not scan this function -- it
+// legitimately needs to name `Role::Anonymous` as the identity-resolution
+// fallback.
+struct ActingUser {
+    user: Option<String>,
+    role: Role,
+    active: bool,
+}
+
+fn resolve_acting_user(state: &AppState, token: Option<&str>) -> ActingUser {
+    match token.and_then(|t| resolve_identity(state, t)) {
+        Some((user, role, active)) => ActingUser { user: Some(user), role, active },
+        None => ActingUser { user: None, role: Role::Anonymous, active: true },
+    }
+}
+
 // ---- request/response bodies ------------------------------------------------
 
 #[derive(Deserialize)]
@@ -265,6 +278,14 @@ struct TokenQuery {
     token: Option<String>,
 }
 
+// Every protected read/mutation below follows the same shape: resolve the
+// acting identity, ask the kernel for a `Grant<Op>`, and only then touch
+// the article. There is no `if role == ...` / `if state == ...` access
+// check left in this file for these four handlers -- that logic now lives
+// in `authz_spike::authz` (proof-spike/src/authz.rs), and the *only* way to
+// get past the `?` is a `Grant<Op>` the kernel actually issued. See
+// `app/boundary_lint.sh` and `proof-spike/README.md` "what is now
+// impossible by construction".
 async fn get_article(
     State(state): State<SharedState>,
     Path(id): Path<u64>,
@@ -275,39 +296,12 @@ async fn get_article(
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
 
     let token = extract_token(&headers, q.token);
-    let (role, is_author) = match token.as_deref() {
-        None => (Role::Anonymous, false),
-        Some(t) => match resolve_identity(&st, t) {
-            Some((user, role, active)) => {
-                if !active {
-                    // A deactivated viewer is treated like anonymous for
-                    // visibility purposes (inv_deactivated_does_nothing
-                    // covers edit/publish explicitly; we extend the same
-                    // spirit to viewing beyond what's public).
-                    (Role::Anonymous, false)
-                } else {
-                    (role, user == article.author)
-                }
-            }
-            None => (Role::Anonymous, false),
-        },
-    };
+    let acting = resolve_acting_user(&st, token.as_deref());
+    let is_author = acting.user.as_deref() == Some(article.author.as_str());
 
-    let can_view = match article.state {
-        ArticleState::Published => true,
-        ArticleState::Draft => is_author || role == Role::Editor || role == Role::Admin,
-        ArticleState::InReview => is_author || role == Role::Editor || role == Role::Admin,
-        ArticleState::Archived => role != Role::Anonymous,
-    };
-
-    if !can_view {
-        let rule = match article.state {
-            ArticleState::Draft | ArticleState::InReview => "inv_draft_visibility",
-            ArticleState::Archived => "inv_archived_not_public",
-            ArticleState::Published => "inv_anonymous_published_only",
-        };
-        return Err(ApiError::Denied(rule));
-    }
+    let identity = authz::Identity { role: acting.role, is_author, active: acting.active };
+    authz::require::<authz::View>(identity, authz::ArticleMeta { state: article.state })
+        .map_err(|d| ApiError::Denied(d.rule_name()))?;
 
     Ok(Json(article))
 }
@@ -344,26 +338,15 @@ async fn edit_article(
     Json(req): Json<EditArticleReq>,
 ) -> Result<Json<Article>, ApiError> {
     let mut st = state.write().await;
-    let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_edit_rights"))?;
-    let (user, role, active) = resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_edit_rights"))?;
-    if !active {
-        return Err(ApiError::Denied("inv_deactivated_does_nothing"));
-    }
-
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
-    let is_author = user == article.author;
-    let can_edit = is_author || role == Role::Editor || role == Role::Admin;
-    if !can_edit {
-        return Err(ApiError::Denied("inv_edit_rights"));
-    }
-    // Authors (not editors/admins) may only edit unpublished work.
-    if role == Role::Author && is_author {
-        let unpublished =
-            matches!(article.state, ArticleState::Draft | ArticleState::InReview);
-        if !unpublished {
-            return Err(ApiError::Denied("inv_authors_edit_unpublished_only"));
-        }
-    }
+
+    let token = extract_token(&headers, None);
+    let acting = resolve_acting_user(&st, token.as_deref());
+    let is_author = acting.user.as_deref() == Some(article.author.as_str());
+
+    let identity = authz::Identity { role: acting.role, is_author, active: acting.active };
+    authz::require::<authz::Edit>(identity, authz::ArticleMeta { state: article.state })
+        .map_err(|d| ApiError::Denied(d.rule_name()))?;
 
     let a = st.articles.get_mut(&id).unwrap();
     if let Some(t) = req.title {
@@ -381,18 +364,16 @@ async fn submit_article(
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Article>, ApiError> {
     let mut st = state.write().await;
-    let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_edit_rights"))?;
-    let (user, _role, active) = resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_edit_rights"))?;
-    if !active {
-        return Err(ApiError::Denied("inv_deactivated_does_nothing"));
-    }
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
-    if article.author != user {
-        return Err(ApiError::Denied("inv_edit_rights"));
-    }
-    if !matches!(article.state, ArticleState::Draft) {
-        return Err(ApiError::Denied("inv_publish_from_review_only"));
-    }
+
+    let token = extract_token(&headers, None);
+    let acting = resolve_acting_user(&st, token.as_deref());
+    let is_author = acting.user.as_deref() == Some(article.author.as_str());
+
+    let identity = authz::Identity { role: acting.role, is_author, active: acting.active };
+    authz::require::<authz::Submit>(identity, authz::ArticleMeta { state: article.state })
+        .map_err(|d| ApiError::Denied(d.rule_name()))?;
+
     let a = st.articles.get_mut(&id).unwrap();
     a.state = ArticleState::InReview;
     Ok(Json(a.clone()))
@@ -404,19 +385,16 @@ async fn publish_article(
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Article>, ApiError> {
     let mut st = state.write().await;
-    let token = extract_token(&headers, None).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
-    let (_user, role, active) =
-        resolve_identity(&st, &token).ok_or(ApiError::Denied("inv_publish_staff_only"))?;
-    if !active {
-        return Err(ApiError::Denied("inv_deactivated_does_nothing"));
-    }
-    if !(role == Role::Editor || role == Role::Admin) {
-        return Err(ApiError::Denied("inv_publish_staff_only"));
-    }
     let article = st.articles.get(&id).cloned().ok_or(ApiError::NotFound)?;
-    if !matches!(article.state, ArticleState::InReview) {
-        return Err(ApiError::Denied("inv_publish_from_review_only"));
-    }
+
+    let token = extract_token(&headers, None);
+    let acting = resolve_acting_user(&st, token.as_deref());
+    let is_author = acting.user.as_deref() == Some(article.author.as_str());
+
+    let identity = authz::Identity { role: acting.role, is_author, active: acting.active };
+    authz::require::<authz::Publish>(identity, authz::ArticleMeta { state: article.state })
+        .map_err(|d| ApiError::Denied(d.rule_name()))?;
+
     let a = st.articles.get_mut(&id).unwrap();
     a.state = ArticleState::Published;
     Ok(Json(a.clone()))

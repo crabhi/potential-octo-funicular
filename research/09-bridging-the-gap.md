@@ -26,7 +26,7 @@ become type errors instead of conventions.
 | Track | Approach | Hypothesis | Falsifier | Status |
 |---|---|---|---|---|
 | F | **Gate-strengthened repair loop**: add frozen feature runs (adversarial stale-row recovery, happy path) + completion-reachability witness to P4's gate; re-run the episode from the original double-bug protocol with the SAME generic prompt | The strengthened gate alone forces the full fix (episode 1's partial fix gets rejected mechanically) | The repairer stalls, or games the gate some third way the runs don't cover | **WORKED** — full fix in 1 round; controlled comparison in P4 README |
-| G | **Type-enforced kernel boundary** (`examples/cms/`): protected app operations require a `Grant<Op>` token only the verified kernel can mint | Bypassing the kernel becomes a compile error, with the app harness and kernel proofs staying green | The typestate refactor breaks the app/race semantics, or meaningful checks can't be tokenized | in progress |
+| G | **Type-enforced kernel boundary** (`examples/cms/`): protected app operations require a `Grant<Op>` token only the verified kernel can mint | Bypassing the kernel becomes a compile error, with the app harness and kernel proofs staying green | The typestate refactor breaks the app/race semantics, or meaningful checks can't be tokenized | **WORKED** (compile-fail pinned; harness identical; proofs green) |
 
 ## Ground rules (from 07/08)
 
@@ -38,6 +38,24 @@ become type errors instead of conventions.
   cost. Parked ≠ dead: parked means consciously not now.
 
 ## Episode log
+
+- **Track F result (2026-07-30): WORKED — the phase-2 flagship.** Same
+  double-bug protocol, same Sonnet repairer, same generic prompt as
+  episode 1; only the gate changed (added frozen feature runs + completion
+  witness). Episode 1 (safety-only gate): sound-but-partial fix, latent
+  liveness regression accepted. Episode 2 (strengthened gate): FULL fix in
+  one round (IS-DISTINCT backfill + N==O switch), 30k traces + Apalache
+  clean, completion witnessed in 84% of traces. Controlled comparison
+  table in prototypes/p4-agent-loop/README.md. Conclusion: with LLM
+  repairers, invest in gate strength, not NL steering.
+- **Track G result (2026-07-30): WORKED.** `Grant<Op>` capability tokens
+  (sealed, non-forgeable) minted only by `authz::require`; all four
+  protected handlers hold zero raw role checks; forging a Grant (E0639)
+  and using the wrong op token (E0308) are pinned compile-fail tests;
+  boundary lint as belt-and-suspenders; app harness identical
+  (5/5, 2/2, 2/2); kernel tests 11/11 and Kani unchanged. Remaining
+  conventions documented: admin endpoints out of scope; identity
+  freshness is AUTH_MODE's guarantee, not the kernel's.
 
 - **Track A result (2026-07-30): WORKED, with a research-grade finding.**
   Sonnet repaired the seeded IS-NULL bug in one round (fixed the switch

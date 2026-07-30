@@ -13,3 +13,7 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
+# The verified authorization kernel (examples/cms/proof-spike): Role,
+# ArticleState, authorize()/can_submit(), and the authz::Grant<Op> boundary
+# API. See research/09-bridging-the-gap.md, Track D's "boundary problem".
+authz_spike = { path = "../../proof-spike" }

@@ -1,0 +1,8 @@
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> tests/compile-fail/forge_grant_directly.rs:9:32
+   |
+ 9 |       let _forged: Grant<View> = Grant {
+   |  ________________________________^
+10 | |         _op: std::marker::PhantomData,
+11 | |     };
+   | |_____^

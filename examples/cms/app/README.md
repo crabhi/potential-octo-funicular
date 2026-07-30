@@ -128,6 +128,132 @@ cd ../harness
   per scenario, the same way P3 gives each stateful/concurrent test suite
   a clean schema.
 
+## Track D follow-up (2026-07-30): the authorization kernel is now load-bearing, mechanically
+
+Track D's episode log (`research/09-bridging-the-gap.md`) named a standing
+caveat on the Dafny→Go kernel: "nothing forces the app to route through the
+kernel (the boundary problem)". This app is the fix for that, on the Rust
+side. `get_article`, `edit_article`, `submit_article`, and `publish_article`
+no longer contain a single `if role == ...` / `if state == ...` access
+check -- every one of them now calls
+`authz::require::<Op>(identity, meta)?` from the sibling `proof-spike`
+crate (now a real library dependency, `authz_spike`, not just a Kani
+sandbox) and only proceeds on `Ok`. `Role` and `ArticleState` themselves
+are now the kernel's types (`use authz_spike::{Role, ArticleState}`), not
+look-alike copies.
+
+### What is type-enforced (a compiler error, not a convention)
+
+`authz_spike::authz::Grant<Op>` is a sealed capability token: it has one
+private field, the struct itself is `#[non_exhaustive]`, and the only
+function that can produce one is `authz::require::<Op>`. Concretely, in
+this codebase, that means:
+
+- A handler cannot skip the authorization check and still compile, because
+  there's no local `if` to skip *around* anymore -- the check **is** the
+  only route to a `Grant<Op>`, and the handler needs one before it touches
+  protected state.
+- A handler cannot reuse "I checked something" for the wrong operation:
+  `Grant<Edit>` and `Grant<Publish>` are different types, so a `Grant`
+  obtained for editing cannot be passed anywhere a `Grant<Publish>` is
+  required. See `proof-spike/README.md`'s "Track D follow-up" section for
+  the actual `rustc` errors this produces (`E0639` for forging a `Grant`
+  directly, `E0308` for using the wrong `Grant<Op>`), captured from a
+  `trybuild` compile-fail test that runs as part of `cargo test` in
+  `proof-spike/`.
+
+### What remains convention (documented, not type-enforced)
+
+- **A handler could call `authz::require` and discard the `Err`** (skip the
+  `?`). Nothing in the type system stops that. `boundary_lint.sh` (new,
+  `app/boundary_lint.sh`) is a textual belt-and-suspenders check: it greps
+  `server/src/main.rs` and asserts that `get_article`/`edit_article`/
+  `submit_article`/`publish_article` each (a) call `authz::require` and (b)
+  contain no direct `Role::*` comparison of their own. Run it directly:
+
+  ```
+  $ ./boundary_lint.sh
+  boundary_lint: OK -- get_article/edit_article/submit_article/publish_article contain no direct Role::* comparisons and each calls authz::require
+  boundary_lint: (admin_deactivate/admin_demote intentionally not scanned -- out of refactor scope, see README)
+  ```
+
+  This is pattern matching over source text, not a proof: a rewrite that
+  keeps a call to `authz::require` in the source while defeating its
+  result would not be caught. The `Grant<Op>` typestate above is the actual
+  guarantee; this script is the "and also we checked" layer research/09
+  asked for.
+- **`admin_deactivate`/`admin_demote`** (deactivating or demoting a user)
+  are deliberately *out of scope* for this refactor -- the task named
+  view/edit/submit/publish, and neither admin action nor its "only active
+  admins may do this" rule is part of the proven `authorize()`/`Perms`
+  decision core (there's no `inv_*` YAML rule for "who may demote"; the app
+  reuses `inv_publish_staff_only`'s name for the 403, which was already a
+  slight abuse of that rule's vocabulary before this refactor and is
+  unchanged by it). Both handlers still do their own
+  `if !active || role != Role::Admin` check. `boundary_lint.sh` does not
+  scan them and says so in its own comments -- this is the one place left
+  in `main.rs` with a raw role comparison, by design and on the record.
+- **Identity freshness is untouched, on purpose** -- see the next section.
+
+### The stale-identity race is untouched, and that's correct
+
+The kernel decides correctly on whatever `Identity` it is handed. It has no
+way to distinguish "this role/active snapshot was just re-read from live
+state" from "this role/active snapshot is a minute-old cached session
+token" -- and it shouldn't try to; that's a different guarantee than
+"was the access-control decision computed correctly for these inputs".
+`AUTH_MODE` (`resolve_identity` in `main.rs`) is entirely responsible for
+*which* snapshot the kernel receives; the kernel's job starts only once
+that snapshot exists. This is exactly the correspondence already
+documented above: `AUTH_MODE=cached` ↔ `CHECK_AT_ACTION=false` (checked
+once, at session-issue time) vs. `AUTH_MODE=live` ↔ `CHECK_AT_ACTION=true`
+(checked at the moment of the action). Refactoring the *decision* into a
+sealed kernel does nothing to move that knob -- it's still the one function
+(`resolve_identity`) that branches on it, completely outside `authz`.
+
+Confirmed empirically, not just argued: the regression run below still
+reproduces the cached-mode race 2/2 (stale token published after demote,
+stale token published after deactivate) and still shows live mode refusing
+the identical sequence 2/2, naming the same two invariants
+(`inv_publish_staff_only`, `inv_deactivated_does_nothing`) as before the
+refactor. The kernel didn't (and structurally couldn't) fix a bug in
+*which identity gets checked* -- it only guarantees *that* checking
+happens and *what* the checked decision is.
+
+### A minor, deliberate behavior change (untested edge case)
+
+Pre-refactor, `edit_article`/`submit_article`/`publish_article` checked
+"is there a valid, active session" *before* fetching the target article --
+so a request from a deactivated user against a nonexistent article ID
+returned `403 inv_deactivated_does_nothing`, not `404`. Post-refactor, all
+four protected handlers fetch the article first (a `404` on a bad ID
+always wins), matching `get_article`'s pre-existing order exactly. This
+harmonizes the four handlers onto one consistent rule ("does the resource
+exist" is answered before "are you allowed to act on it") and was necessary
+because the kernel's `ArticleMeta { state }` requires knowing the article's
+state before a decision can be requested. No test in `harness/` exercises
+this specific combination (inactive user + nonexistent article), so nothing
+in the harness's observed behavior changed; this is called out here for
+completeness, not because anything failed.
+
+### Regression: `run_demo.sh` is still green
+
+```
+================= SUMMARY =================
+policy checks passed (live mode):      5/5
+violations reproduced (cached mode):    2/2
+refusals confirmed (live mode, race):   2/2
+=============================================
+DEMO OK
+```
+
+Identical to the pre-refactor numbers. `proof-spike`'s own suite was also
+re-run (see `proof-spike/README.md` "Track D follow-up" → "Regression"):
+`cargo test --release` (11 tests, including the new compile-fail cases) and
+`cargo kani` (12 successful / 1 expected failure, same as before) both
+green -- the kernel refactor did not touch, and did not break,
+`authorize()`/the 9 proven rules.
+
 ## Deviations from the brief
 
 - The brief describes the race scenarios as pytest functions reading a

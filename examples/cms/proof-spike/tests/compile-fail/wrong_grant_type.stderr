@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/compile-fail/wrong_grant_type.rs:27:16
+   |
+27 |     do_publish(edit_grant); // expected `Grant<Publish>`, found `Grant<Edit>`
+   |     ---------- ^^^^^^^^^^ expected `Grant<Publish>`, found `Grant<Edit>`
+   |     |
+   |     arguments to this function are incorrect
+   |
+   = note: expected struct `Grant<Publish>`
+              found struct `Grant<Edit>`
+note: function defined here
+  --> tests/compile-fail/wrong_grant_type.rs:9:4
+   |
+ 9 | fn do_publish(_grant: Grant<Publish>) {
+   |    ^^^^^^^^^^ ----------------------

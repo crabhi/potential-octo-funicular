@@ -252,3 +252,170 @@ cargo test --release -- --nocapture   # exhaustive enumeration + timing data poi
 cargo kani                             # all 13 harnesses; exits nonzero because
                                         # the buggy-variant harness is *supposed* to fail
 ```
+
+---
+
+## Track D follow-up (2026-07-30): the boundary problem, fixed for the Rust side
+
+Track D's episode log flagged a standing caveat on the Dafny→Go kernel:
+"nothing forces the app to route through the kernel (the boundary
+problem)". This crate now exposes `authz`, a wrapper API that turns that
+convention into a compile error for the CMS app (`examples/cms/app/server`).
+Full design rationale and code are in `src/authz.rs`'s module doc comment;
+this section is the results writeup: what changed, what got re-verified,
+and the actual compiler errors the "impossible by construction" claim rests
+on.
+
+### What was added (additive only)
+
+- `Role`/`ArticleState` gained `Serialize`/`Deserialize` derives (so
+  `app/server` can use these types directly instead of hand-rolling
+  identical copies to serve over JSON) -- annotations only, no variant or
+  match arm touched.
+- `pub fn can_submit(is_author, active, state) -> bool` -- the
+  draft→in_review workflow transition. Not one of the 10 YAML rules (it's
+  a transition, not an access verb), so it's not part of `authorize`,
+  `Perms`, or `ALL_RULES`, and it is **not** Kani-proven -- just exhaustively
+  checked (16 points, `exhaustive_can_submit_matches_spec`). That's a
+  deliberately weaker guarantee than the 9 proven rules, and this doc says
+  so rather than blurring the distinction.
+- `src/authz.rs`: the sealed `Grant<Op>` typestate, marker types
+  `View`/`Edit`/`Submit`/`Publish`, `Identity`/`ArticleMeta` input structs,
+  `DeniedRule`, and the one entry point, `require::<Op>(identity, meta) ->
+  Result<Grant<Op>, DeniedRule>`. It calls `authorize()` (View/Edit/Publish)
+  or `can_submit()` (Submit) internally -- the proven decision logic itself
+  was **not modified**, only wrapped.
+- `tests/compile_fail.rs` + `tests/compile-fail/*.rs` (trybuild): two
+  compile-fail cases, described below.
+
+**No existing function body in `lib.rs` (`authorize`, `authorize_by_id`,
+`authorize_buggy_missing_active_check`, any `inv_*` predicate) was changed.**
+Per the task brief's "if you touch the decision logic AT ALL, re-run both
+[`cargo test --release` and `cargo kani`]" rule: this refactor is additive,
+not a modification of the decision logic, but both were re-run anyway (see
+"Regression" below) rather than relying on that distinction being airtight.
+
+### What is now impossible by construction (type-enforced)
+
+- A `Grant<Op>` can only be produced by `authz::require::<Op>`. Its one
+  field is private and the struct is `#[non_exhaustive]` on top of that --
+  no struct-literal syntax from another crate (or another module in this
+  one) can build one.
+- `Operation` (which selects what `require::<Op>` does) is sealed: only
+  `View`/`Edit`/`Submit`/`Publish` implement it. An app author can't declare
+  `struct MyOp;` and grant themselves a `Grant<MyOp>`.
+- `Grant<Edit>` and `Grant<Publish>` are different types. Holding *a* grant
+  is not enough; it must be the grant for the operation being performed.
+
+### What remains convention (not type-enforced)
+
+- **Identity freshness.** `require` decides correctly on whatever
+  `Identity` it's handed; it cannot tell a live re-read from a stale cached
+  snapshot. That's `AUTH_MODE`'s job in `app/server`, and it is a
+  completely separate guarantee from "was the kernel consulted" -- see
+  `app/README.md`'s `CHECK_AT_ACTION` correspondence table, unchanged by
+  this refactor.
+- **Discarding the `Result`.** Nothing stops a handler from calling
+  `authz::require` and ignoring `Err(..)` (e.g. `let _ = ...;` instead of
+  `?`). `app/boundary_lint.sh` is a textual, non-proof check for this and
+  for direct `Role::*` comparisons reappearing in the four protected
+  handlers.
+- **Admin user-management** (`admin_deactivate`/`admin_demote`) is out of
+  this refactor's scope (the task named view/edit/submit/publish) and still
+  does its own `role != Role::Admin` check -- documented, not hidden, in
+  `app/boundary_lint.sh` and `app/README.md`.
+
+### The compile-fail demonstration
+
+`tests/compile-fail/forge_grant_directly.rs` -- a caller in a separate
+crate tries to construct a `Grant<View>` directly instead of calling
+`require`:
+
+```rust
+use authz_spike::authz::{Grant, View};
+
+fn main() {
+    let _forged: Grant<View> = Grant {
+        _op: std::marker::PhantomData,
+    };
+}
+```
+
+Actual `rustc` output (captured 2026-07-30, rustc 1.94.1, checked in at
+`tests/compile-fail/forge_grant_directly.stderr`):
+
+```
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> tests/compile-fail/forge_grant_directly.rs:9:32
+   |
+ 9 |       let _forged: Grant<View> = Grant {
+   |  ________________________________^
+10 | |         _op: std::marker::PhantomData,
+11 | |     };
+   | |_____^
+```
+
+`tests/compile-fail/wrong_grant_type.rs` -- a caller legitimately obtains a
+`Grant<Edit>` (they really can edit the article) and tries to use it where
+a `Grant<Publish>` is required:
+
+```rust
+let edit_grant: Grant<Edit> = require(identity, meta).unwrap();
+do_publish(edit_grant); // expected `Grant<Publish>`, found `Grant<Edit>`
+```
+
+Actual `rustc` output (checked in at `tests/compile-fail/wrong_grant_type.stderr`):
+
+```
+error[E0308]: mismatched types
+  --> tests/compile-fail/wrong_grant_type.rs:27:16
+   |
+27 |     do_publish(edit_grant); // expected `Grant<Publish>`, found `Grant<Edit>`
+   |     ---------- ^^^^^^^^^^ expected `Grant<Publish>`, found `Grant<Edit>`
+   |     |
+   |     arguments to this function are incorrect
+   |
+   = note: expected struct `Grant<Publish>`
+              found struct `Grant<Edit>`
+note: function defined here
+  --> tests/compile-fail/wrong_grant_type.rs:9:4
+   |
+ 9 | fn do_publish(_grant: Grant<Publish>) {
+   |    ^^^^^^^^^^ ----------------------
+```
+
+Both are wired into the normal `cargo test` run via `trybuild`
+(`tests/compile_fail.rs`) -- a regression here means CI fails, not just "a
+human noticed at review time". No `.stderr` file is checked in with an
+expectation of matching future `rustc` versions byte-for-byte forever; it's
+pinned to what this exact toolchain produces today and would need
+regenerating (`TRYBUILD=overwrite cargo test`) if a future compiler changes
+the wording -- the requirement being pinned down is "fails to compile", not
+"produces this exact string".
+
+### Regression (re-run both, as instructed)
+
+```
+$ cargo test --release
+running 11 tests   (was 5 before this refactor: +4 authz-level parity
+                     tests in authz.rs, +1 exhaustive can_submit test;
+                     see authz.rs's `mod tests` and lib.rs's new test)
+test result: ok. 11 passed; 0 failed
+
+     Running tests/compile_fail.rs
+running 1 test
+test tests/compile-fail/forge_grant_directly.rs ... ok
+test tests/compile-fail/wrong_grant_type.rs ... ok
+test result: ok. 1 passed; 0 failed
+
+$ cargo kani
+Manual Harness Summary:
+Verification failed for - kani_harness::kani_buggy_variant_violates_deactivated_does_nothing
+Complete - 12 successfully verified harnesses, 1 failures, 13 total.
+```
+
+Identical outcome to the pre-refactor spike: all 9 finite-domain rule
+harnesses + both feature/id-crossover groups still verify; the deliberate
+buggy-variant harness still (correctly) fails. The kernel refactor did not
+touch `authorize`/`authorize_by_id`/the `inv_*` predicates, and this run
+confirms it didn't regress their proofs either.
