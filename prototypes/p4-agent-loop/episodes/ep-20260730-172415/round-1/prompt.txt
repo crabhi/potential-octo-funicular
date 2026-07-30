@@ -1,0 +1,115 @@
+You are an automated repair agent for a formal protocol model.
+
+The file at /home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt is a Quint model of an online schema migration: column O
+is renamed to N via expand/contract (add N write-only, upgrade app instances
+to dual-write, backfill old rows, switch reads to N, drop O), running
+concurrently with API requests from two app instances under snapshot
+isolation. Rolling upgrades mean v1 instances (which write only O) and v2
+instances (which dual-write O and N) coexist for a while.
+
+The model checker found an execution that violates the invariants (they
+express: reads never return stale values; O and N agree after the read
+switch; the switch never happens before backfill completed).
+
+Your rules:
+1. Edit ONLY the action definitions. The section after the line containing
+   'INVARIANTS - FROZEN' is frozen: the harness reverts any change there and
+   your round fails.
+2. Make the minimal protocol change that makes the invariants hold. Reason
+   about which real-world migration ordering or criterion is wrong in the
+   actions; do not add artificial guards that merely disable functionality
+   (e.g. do not make actions unexecutable wholesale).
+3. Use the Read tool to read the file and the Edit tool to change it.
+   Do not create new files. Do not run shell commands.
+
+Checker summary:
+
+  instVer: Map(1 -> 2, 2 -> 1),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 1),
+  nState: 1,
+  oState: 2,
+  phase: 1,
+  ver: Map(1 -> 3, 2 -> 4)
+}
+
+[State 18]
+{
+  bf: (false, 0, 0, 0),
+  dbN: Map(1 -> -1, 2 -> 1),
+  dbO: Map(1 -> 1, 2 -> 2),
+  instVer: Map(1 -> 2, 2 -> 1),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 2),
+  nState: 1,
+  oState: 2,
+  phase: 1,
+  ver: Map(1 -> 3, 2 -> 5)
+}
+
+[State 19]
+{
+  bf: (false, 0, 0, 0),
+  dbN: Map(1 -> -1, 2 -> 1),
+  dbO: Map(1 -> 1, 2 -> 2),
+  instVer: Map(1 -> 2, 2 -> 2),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 2),
+  nState: 1,
+  oState: 2,
+  phase: 1,
+  ver: Map(1 -> 3, 2 -> 5)
+}
+
+[State 20]
+{
+  bf: (false, 0, 0, 0),
+  dbN: Map(1 -> 1, 2 -> 1),
+  dbO: Map(1 -> 1, 2 -> 2),
+  instVer: Map(1 -> 2, 2 -> 2),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 2),
+  nState: 1,
+  oState: 2,
+  phase: 1,
+  ver: Map(1 -> 4, 2 -> 5)
+}
+
+[State 21]
+{
+  bf: (false, 0, 0, 0),
+  dbN: Map(1 -> 1, 2 -> 1),
+  dbO: Map(1 -> 1, 2 -> 2),
+  instVer: Map(1 -> 2, 2 -> 2),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 2),
+  nState: 1,
+  oState: 2,
+  phase: 1,
+  ver: Map(1 -> 4, 2 -> 5)
+}
+
+[State 22]
+{
+  bf: (false, 0, 0, 0),
+  dbN: Map(1 -> 1, 2 -> 1),
+  dbO: Map(1 -> 1, 2 -> 2),
+  instVer: Map(1 -> 2, 2 -> 2),
+  lastReadOk: true,
+  logical: Map(1 -> 1, 2 -> 2),
+  nState: 2,
+  oState: 2,
+  phase: 2,
+  ver: Map(1 -> 4, 2 -> 5)
+}
+
+[violation] Found an issue (492ms at 87 traces/second).
+Use --verbosity=3 to show executions.
+error: Invariant violated
+
+
+Counterexample trace (ITF JSON; vars: phase 0=initial 1=expanded 2=switched,
+oState/nState 0=absent 1=writeonly 2=present 3=deleteonly, dbO/dbN maps
+key->value with -1 = NULL, logical = value the app believes, bf = in-flight
+backfill (active,key,val,snapVer), lastReadOk = ghost):
+{"#meta":{"format":"ITF","format-description":"https://apalache-mc.org/docs/adr/015adr-trace.html","source":"/home/user/potential-octo-funicular/prototypes/p4-agent-loop/protocol/migration.qnt","status":"violation","description":"Created by Quint on Thu Jul 30 2026 17:24:19 GMT+0000 (Coordinated Universal Time)","timestamp":1785432259595},"vars":["ver","lastReadOk","phase","dbN","oState","instVer","nState","logical","dbO","bf"],"states":[{"#meta":{"index":0},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"-1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]},"nState":{"#bigint":"0"},"oState":{"#bigint":"2"},"phase":{"#bigint":"0"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]}},{"#meta":{"index":1},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"-1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]},"nState":{"#bigint":"0"},"oState":{"#bigint":"2"},"phase":{"#bigint":"0"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"0"}],[{"#bigint":"2"},{"#bigint":"0"}]]}},{"#truncated":11},{"#meta":{"index":13},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"-1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"1"}]]}},{"#meta":{"index":14},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"2"}]]}},{"#meta":{"index":15},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"3"}]]}},{"#meta":{"index":16},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"3"}]]}},{"#meta":{"index":17},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"4"}]]}},{"#meta":{"index":18},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"5"}]]}},{"#meta":{"index":19},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"-1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"3"}],[{"#bigint":"2"},{"#bigint":"5"}]]}},{"#meta":{"index":20},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"4"}],[{"#bigint":"2"},{"#bigint":"5"}]]}},{"#meta":{"index":21},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"1"},"oState":{"#bigint":"2"},"phase":{"#bigint":"1"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"4"}],[{"#bigint":"2"},{"#bigint":"5"}]]}},{"#meta":{"index":22},"bf":{"#tup":[false,{"#bigint":"0"},{"#bigint":"0"},{"#bigint":"0"}]},"dbN":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"1"}]]},"dbO":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"instVer":{"#map":[[{"#bigint":"1"},{"#bigint":"2"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"lastReadOk":true,"logical":{"#map":[[{"#bigint":"1"},{"#bigint":"1"}],[{"#bigint":"2"},{"#bigint":"2"}]]},"nState":{"#bigint":"2"},"oState":{"#bigint":"2"},"phase":{"#bigint":"2"},"ver":{"#map":[[{"#bigint":"1"},{"#bigint":"4"}],[{"#bigint":"2"},{"#bigint":"5"}]]}}]}
