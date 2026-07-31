@@ -7,3 +7,4 @@ _apalache-out/
 prototypes/p1-migration-model/tmp/
 *.itf.json
 .hypothesis/
+prototypes/p6-parameterized-proof/mypyvy/
