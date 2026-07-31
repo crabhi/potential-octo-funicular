@@ -34,12 +34,16 @@ module migration {
   var dbO: int -> int
   var dbN: int -> int
   var logical: int -> int
-  var ver: int -> int
+  // dirty[k]: a write committed on k since the in-flight backfill snapshot.
+  // (Replaces the unbounded version counter: equality of version numbers is
+  // only ever used as 'no commit since snapshot', which this bool encodes
+  // finitely — needed for the unbounded inductive proof, Track I.)
+  var dirty: int -> bool
   var instVer: int -> int
-  var bf: (bool, int, int, int)
+  var bf: (bool, int, int)
   var lastReadOk: bool
 
-  action keepDb = all { dbO' = dbO, dbN' = dbN, logical' = logical, ver' = ver }
+  action keepDb = all { dbO' = dbO, dbN' = dbN, logical' = logical, dirty' = dirty }
   action keepMig = all { phase' = phase, oState' = oState, nState' = nState }
   action keepBf = bf' = bf
   action keepInst = instVer' = instVer
@@ -52,9 +56,9 @@ module migration {
     dbO' = KEYS.mapBy(k => 0),
     dbN' = KEYS.mapBy(k => NULL),
     logical' = KEYS.mapBy(k => 0),
-    ver' = KEYS.mapBy(k => 0),
+    dirty' = KEYS.mapBy(k => false),
     instVer' = INSTANCES.mapBy(i => 1),
-    bf' = (false, 0, 0, 0),
+    bf' = (false, 0, 0),
     lastReadOk' = true,
   }
 
@@ -65,7 +69,7 @@ module migration {
     dbO' = dbO.set(k, v),
     dbN' = dbN,
     logical' = logical.set(k, v),
-    ver' = ver.set(k, ver.get(k) + 1),
+    dirty' = dirty.set(k, true),
     keepMig, keepBf, keepInst, keepRead,
   }
 
@@ -83,7 +87,7 @@ module migration {
     dbO' = if (oState == COL_PRESENT) dbO.set(k, v) else dbO,
     dbN' = if (nState != COL_ABSENT) dbN.set(k, v) else dbN,
     logical' = logical.set(k, v),
-    ver' = ver.set(k, ver.get(k) + 1),
+    dirty' = dirty.set(k, true),
     keepMig, keepBf, keepInst, keepRead,
   }
 
@@ -134,8 +138,10 @@ module migration {
     not(bf._1),
     dbN.get(k) != dbO.get(k),
     INSTANCES.forall(i => instVer.get(i) == 2),
-    bf' = (true, k, dbO.get(k), ver.get(k)),
-    keepDb, keepMig, keepInst, keepRead,
+    bf' = (true, k, dbO.get(k)),
+    dbO' = dbO, dbN' = dbN, logical' = logical,
+    dirty' = dirty.set(k, false),
+    keepMig, keepInst, keepRead,
   }
 
   action backfillBegin = {
@@ -145,19 +151,19 @@ module migration {
 
   action backfillCommit = all {
     bf._1,
-    ver.get(bf._2) == bf._4,
+    not(dirty.get(bf._2)),
     dbN' = dbN.set(bf._2, bf._3),
-    ver' = ver.set(bf._2, ver.get(bf._2) + 1),
     dbO' = dbO,
     logical' = logical,
-    bf' = (false, 0, 0, 0),
+    dirty' = dirty,
+    bf' = (false, 0, 0),
     keepMig, keepInst, keepRead,
   }
 
   action backfillAbort = all {
     bf._1,
-    ver.get(bf._2) != bf._4,
-    bf' = (false, 0, 0, 0),
+    dirty.get(bf._2),
+    bf' = (false, 0, 0),
     keepDb, keepMig, keepInst, keepRead,
   }
 
@@ -215,6 +221,58 @@ module migration {
     (phase >= P_SWITCHED) implies KEYS.forall(k => dbN.get(k) != NULL)
 
   val invAll = and { invReadsCorrect, invColumnsAgree, invBackfillDoneAtSwitch }
+
+  // ---- Inductive invariant (Track I: proof at EVERY depth) ----------------
+  //
+  // indInv is preserved by every action and implied by init; Apalache checks
+  // base case + consecution + (indInv => invAll), which proves the safety
+  // invariants for executions of ANY length — no step bound. The conjuncts
+  // are the semantic content of the protocol:
+
+  val indPhaseShape = and {
+    phase >= P_INITIAL and phase <= P_DONE,
+    (phase == P_INITIAL) implies (nState == COL_ABSENT and oState == COL_PRESENT),
+    (phase == P_EXPANDED) implies (nState == COL_WRITEONLY and oState == COL_PRESENT),
+    (phase == P_SWITCHED) implies (nState == COL_PRESENT and oState == COL_PRESENT),
+    (phase == P_CONTRACTING) implies (nState == COL_PRESENT and oState == COL_DELETEONLY),
+    (phase == P_DONE) implies (nState == COL_PRESENT and oState == COL_ABSENT),
+  }
+
+  // Domain ("shape") constraints: Apalache's inductive mode uses indInv to
+  // GENERATE arbitrary states satisfying it, so every variable needs an
+  // explicit domain first.
+  pure val CELLVALS = Set(NULL, 0).union(VALUES)
+
+  val indShape = and {
+    phase.in(P_INITIAL.to(P_DONE)),
+    oState.in(Set(COL_ABSENT, COL_PRESENT, COL_DELETEONLY)),
+    nState.in(Set(COL_ABSENT, COL_WRITEONLY, COL_PRESENT)),
+    dbO.in(setOfMaps(KEYS, CELLVALS)),
+    dbN.in(setOfMaps(KEYS, CELLVALS)),
+    logical.in(setOfMaps(KEYS, Set(0).union(VALUES))),
+    dirty.in(setOfMaps(KEYS, Bool)),
+    instVer.in(setOfMaps(INSTANCES, Set(1, 2))),
+    bf.in(tuples(Bool, Set(0).union(KEYS), CELLVALS)),
+    lastReadOk.in(Bool),
+    bf._1 implies bf._2.in(KEYS),
+  }
+
+  val indInv = and {
+    indShape,
+    // the safety ghost itself
+    lastReadOk,
+    indPhaseShape,
+    // while O is live, it carries the logical value (all writers write it)
+    (oState == COL_PRESENT) implies KEYS.forall(k => dbO.get(k) == logical.get(k)),
+    // once N is readable, it carries the logical value
+    (nState == COL_PRESENT) implies KEYS.forall(k => dbN.get(k) == logical.get(k)),
+    // N never becomes readable while a v1 instance survives (drain, monotone)
+    (nState == COL_PRESENT) implies INSTANCES.forall(i => instVer.get(i) == 2),
+    // backfill transactions exist only during the expanded phase
+    bf._1 implies phase == P_EXPANDED,
+    // the logical value is always a real value, never NULL
+    KEYS.forall(k => logical.get(k) != NULL),
+  }
 
   // ---- Feature/liveness gate (also FROZEN) --------------------------------
   //
