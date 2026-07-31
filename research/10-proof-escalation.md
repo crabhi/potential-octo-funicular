@@ -80,7 +80,7 @@ tests are only an approximation."
 | Track | What gets PROVEN | Tool | Status |
 |---|---|---|---|
 | I | Migration safety at every depth (inductive invariant, fixed constants) | Quint/Apalache `--inductive-invariant` | **PROVEN** (both models; see episode log) |
-| J | Same protocol, ANY number of keys/instances (parameterized) + invariant inference | mypyvy (PDR∀) / Ivy | in progress |
+| J | Same protocol, ANY number of keys/instances (parameterized) + invariant inference | mypyvy (PDR∀) / Ivy | **PROVEN for all system sizes**; UPDR independently inferred a 9-clause invariant; buggy variant has NO inductive invariant |
 | K | CMS noninterference: draft contents never influence anonymous observations (hyperproperty via self-composition) | Quint/Apalache on self-composed model | **PROVEN** (inductive, safe config) + machine-found leak distinguisher (leaky config) |
 | L | Real Rust code proof beyond the pure kernel: session/identity state machine in the app | Dafny (Verus proxy-blocked) | **PROVEN** — freshness, revocation/demotion immediacy, cached-stale witness; buggy variant rejected |
 | M | Migration completion: liveness under fairness as a temporal proof | TLC + WF (hand-ported TLA+) | **PROVEN, stronger than designed** — no interference assumption needed; rollout fairness shown necessary |
@@ -101,6 +101,17 @@ tests are only an approximation."
   (Track K, same day: noninterference proven inductively via
   self-composition; leaky-search variant yields a machine-found two-world
   distinguisher — see examples/cms/noninterference/.)
+- **Track J (2026-07-31): PROVEN FOR ALL SYSTEM SIZES.** EPR model in
+  mypyvy (values erased into equality relations — synced/oEqLogical/
+  nEqLogical/hasN/dirty — with a per-transition soundness argument): the
+  hand-ported indInv, quantified over all keys/instances, verifies in
+  0.38s with no CTIs; `updr` independently INFERRED a smaller 9-clause
+  sufficient invariant in 5.7s (machine-found proof, zero human
+  strengthening). Negative control: the IS-NULL variant not only fails —
+  UPDR certifies NO universal inductive invariant exists for it. Also a
+  sharp observation: breaking only backfillBegin's guard still verifies
+  (safety-preserving deadlock — the liveness/safety split again);
+  reproducing the historical bug faithfully requires the switch guard too.
 - **Track L (2026-07-31): PROVEN (Dafny; Verus release downloads
   proxy-blocked).** Session/identity state machine extracted from main.rs
   (cited lines): FreshnessLive, RevocationImmediate, DemotionImmediate

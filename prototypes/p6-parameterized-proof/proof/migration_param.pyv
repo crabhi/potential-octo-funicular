@@ -1,0 +1,241 @@
+# Parameterized (EPR) model of the REPAIRED expand/contract migration
+# protocol from prototypes/p4-agent-loop/protocol/migration.qnt.
+#
+# Track J (research/10-proof-escalation.md): the Apalache proof (Track I)
+# fixes KEYS/INSTANCES to 2x2. This file proves the same safety property
+# for ANY number of keys and ANY number of app instances, by working in
+# the Effectively Propositional (EPR) fragment that mypyvy/Ivy can decide
+# with unbounded quantifier alternation but no function cycles.
+#
+# See README.md for the full abstraction table and soundness argument.
+# Summary: every *value* (dbO[k], dbN[k], logical[k]) is erased and
+# replaced by boolean "agrees with the ground truth" relations. This is
+# sound because the protocol never inspects a value except to compare it
+# for equality (to `logical`, to the other column, or to a snapshot).
+
+sort key
+sort instance
+
+# ---- Phase, as five mutually exclusive nullary relations -----------------
+mutable relation phInitial
+mutable relation phExpanded
+mutable relation phSwitched
+mutable relation phContracting
+mutable relation phDone
+
+# ---- Per-key ghost relations (abstracting dbO/dbN/logical) ---------------
+# synced(k)      : dbO[k] == dbN[k]            (the REPAIRED backfillBegin
+#                  criterion is guarded on the negation of this)
+# oEqLogical(k)  : dbO[k] == logical[k]
+# nEqLogical(k)  : dbN[k] == logical[k]
+# hasN(k)        : dbN[k] != NULL (only meaningful while N is not yet
+#                  authoritative; see soundness note in README re: dbO
+#                  never being NULL)
+# dirty(k)       : a write has committed on k since the open backfill's
+#                  snapshot (the finite SI-conflict encoding, ported as-is)
+mutable relation synced(key)
+mutable relation oEqLogical(key)
+mutable relation nEqLogical(key)
+mutable relation hasN(key)
+mutable relation dirty(key)
+
+# bfAt(k): a backfill transaction is in flight, snapshotting key k.
+# "at most one k" is established structurally (backfillBegin requires no
+# bfAt is currently set) and reproved as invariant [bf_unique] below.
+mutable relation bfAt(key)
+
+# isV2(i): instance i has upgraded to dual-write code.
+mutable relation isV2(instance)
+
+# lastReadOk: the safety ghost — true iff every read so far returned the
+# logically-correct value. This is the thing we are actually proving never
+# becomes false.
+mutable relation lastReadOk
+
+# ---- Derived phase predicates (used only inside transition bodies) -------
+# oPresent  : the O column is live for reads/writes (INITIAL, EXPANDED, SWITCHED)
+# nPresent  : the N column is authoritative-or-present (SWITCHED, CONTRACTING, DONE)
+# nNotAbsent: N exists at all, write-only or better (EXPANDED, SWITCHED, CONTRACTING, DONE)
+definition oPresent() = phInitial | phExpanded | phSwitched
+definition nPresent() = phSwitched | phContracting | phDone
+definition nNotAbsent() = phExpanded | nPresent
+
+# ============================================================================
+# Init
+# ============================================================================
+init phInitial
+init !phExpanded
+init !phSwitched
+init !phContracting
+init !phDone
+
+init oEqLogical(K)     # dbO[k] = logical[k] = 0 for every key
+init !synced(K)        # dbN[k] = NULL != dbO[k] = 0
+init !nEqLogical(K)
+init !hasN(K)
+init !dirty(K)
+init !bfAt(K)
+init !isV2(I)
+init lastReadOk
+
+# ============================================================================
+# Transitions
+# ============================================================================
+
+# v1 instance writes O only. Sound over-approximation: N's relationship to
+# logical is unknown afterwards (may now differ), so synced/nEqLogical are
+# conservatively cleared for k. (Matches the task hint verbatim.)
+transition appWriteV1(i: instance, k: key)
+  modifies oEqLogical, synced, nEqLogical, dirty
+  !isV2(i) &
+  oPresent &
+  (new(oEqLogical(K)) <-> oEqLogical(K) | K = k) &
+  (new(synced(K)) <-> synced(K) & K != k) &
+  (new(nEqLogical(K)) <-> nEqLogical(K) & K != k) &
+  (new(dirty(K)) <-> dirty(K) | K = k)
+
+# v2 instance dual-writes whichever of O/N are live. Enabling guard
+# (oPresent | nNotAbsent) is a tautology over the five phases, so it is
+# omitted; see README. Which columns are actually touched (writeO/writeN)
+# still depends on the phase, so the *effect* keeps the case split.
+transition appWriteV2(i: instance, k: key)
+  modifies synced, oEqLogical, nEqLogical, hasN, dirty
+  isV2(i) &
+  (new(oEqLogical(K)) <-> (K = k -> oPresent) & (K != k -> oEqLogical(K))) &
+  (new(nEqLogical(K)) <-> (K = k -> nNotAbsent) & (K != k -> nEqLogical(K))) &
+  (new(synced(K)) <-> (K = k -> (oPresent & nNotAbsent)) & (K != k -> synced(K))) &
+  (new(hasN(K)) <-> (K = k -> (hasN(K) | nNotAbsent)) & (K != k -> hasN(K))) &
+  (new(dirty(K)) <-> dirty(K) | K = k)
+
+# Read (ghost-only transition: ONLY updates lastReadOk). fromN mirrors the
+# Quint appRead exactly: read from N iff N is authoritative AND this
+# instance is v2; the enabling guard requires that whichever column is read
+# is actually live.
+transition appRead(i: instance, k: key)
+  modifies lastReadOk
+  ((nPresent & isV2(i)) | oPresent) &
+  (new(lastReadOk) <->
+     lastReadOk &
+     ((nPresent & isV2(i) & nEqLogical(k)) |
+      (!(nPresent & isV2(i)) & oEqLogical(k))))
+
+transition upgrade(i: instance)
+  modifies isV2
+  !isV2(i) &
+  !phInitial &
+  (new(isV2(I)) <-> isV2(I) | I = i)
+
+transition expand()
+  modifies phInitial, phExpanded
+  phInitial &
+  !new(phInitial) &
+  new(phExpanded)
+
+# REPAIRED criterion: begin a backfill on any not-yet-synced row, snapshotting
+# it (dirty(k) is cleared, i.e. this is the "no commit since snapshot" fence).
+transition backfillBegin(k: key)
+  modifies bfAt, dirty
+  phExpanded &
+  (forall K. !bfAt(K)) &
+  !synced(k) &
+  (forall I. isV2(I)) &
+  (new(bfAt(K)) <-> K = k) &
+  (new(dirty(K)) <-> dirty(K) & K != k)
+
+# Commit succeeds iff nothing wrote k since the snapshot (!dirty(k)). Then
+# dbN[k] := dbO[k]; since oPresent holds throughout EXPANDED (invariant
+# [o_present_agrees] below), dbO[k] == logical[k] already, so this single
+# write makes synced, hasN AND nEqLogical all true for k in one step.
+transition backfillCommit(k: key)
+  modifies bfAt, synced, hasN, nEqLogical
+  bfAt(k) &
+  !dirty(k) &
+  (new(bfAt(K)) <-> false) &
+  (new(synced(K)) <-> (K = k -> true) & (K != k -> synced(K))) &
+  (new(hasN(K)) <-> (K = k -> true) & (K != k -> hasN(K))) &
+  (new(nEqLogical(K)) <-> (K = k -> true) & (K != k -> nEqLogical(K)))
+
+transition backfillAbort(k: key)
+  modifies bfAt
+  bfAt(k) &
+  dirty(k) &
+  (new(bfAt(K)) <-> false)
+
+# REPAIRED criterion: switch once every row is synced and the drain is
+# complete. Justification for setting nEqLogical(K) true for every K here
+# (not just those literally touched): the guard gives synced(K) for every
+# K, and invariant [o_present_agrees] already gives oEqLogical(K) for every
+# K throughout EXPANDED, hence dbN[K] == dbO[K] == logical[K] for every K —
+# this is a genuine derived fact at the moment of the transition, not a
+# fresh write, so we are entitled to record it.
+transition switchRead()
+  modifies phExpanded, phSwitched, nEqLogical
+  phExpanded &
+  (forall K. !bfAt(K)) &
+  (forall K. synced(K)) &
+  (forall I. isV2(I)) &
+  !new(phExpanded) &
+  new(phSwitched) &
+  (new(nEqLogical(K)) <-> true)
+
+transition contractStart()
+  modifies phSwitched, phContracting
+  phSwitched &
+  !new(phSwitched) &
+  new(phContracting)
+
+transition contractFinish()
+  modifies phContracting, phDone
+  phContracting &
+  !new(phContracting) &
+  new(phDone)
+
+# ============================================================================
+# Safety
+# ============================================================================
+
+# The property that actually matters: no read is ever wrong, at any depth,
+# for any number of keys/instances.
+safety [reads_correct] lastReadOk
+
+# The task-specified headline property: once switched, N carries the
+# logical value everywhere (parameterized invColumnsAgree/invBackfillDone,
+# see README for how this implies both original conjuncts).
+safety [switched_n_correct] phSwitched -> nEqLogical(K)
+
+# ============================================================================
+# Inductive invariant (generalization of migration.qnt's frozen indInv)
+# ============================================================================
+
+# --- phase is one-hot (exactly one of the five holds) ---
+invariant [phase_some] phInitial | phExpanded | phSwitched | phContracting | phDone
+invariant [phase_excl_ie] !(phInitial & phExpanded)
+invariant [phase_excl_is] !(phInitial & phSwitched)
+invariant [phase_excl_ic] !(phInitial & phContracting)
+invariant [phase_excl_id] !(phInitial & phDone)
+invariant [phase_excl_es] !(phExpanded & phSwitched)
+invariant [phase_excl_ec] !(phExpanded & phContracting)
+invariant [phase_excl_ed] !(phExpanded & phDone)
+invariant [phase_excl_sc] !(phSwitched & phContracting)
+invariant [phase_excl_sd] !(phSwitched & phDone)
+invariant [phase_excl_cd] !(phContracting & phDone)
+
+# --- ported indInv conjuncts ---
+# "while O is live, it carries the logical value" (ALL keys, not just written ones)
+invariant [o_present_agrees] oPresent -> oEqLogical(K)
+# "once N is readable, it carries the logical value"
+invariant [n_present_agrees] nPresent -> nEqLogical(K)
+# "N never becomes readable while a v1 instance survives" (drain, monotone)
+invariant [drain_monotone] nPresent -> isV2(I)
+# "backfill transactions exist only during the expanded phase"
+invariant [bf_only_expanded] bfAt(K) -> phExpanded
+# at-most-one backfill in flight (re-derived, not just structural)
+invariant [bf_unique] bfAt(K1) & bfAt(K2) -> K1 = K2
+
+# --- auxiliary lemma needed ONLY because of the value-erasure abstraction ---
+# In the concrete model dbO is never NULL (every write assigns a real
+# VALUE), so synced(k) (dbO[k]==dbN[k]) alone forces dbN[k] != NULL. That
+# domain fact has no relational counterpart after erasing values, so it is
+# restated as an invariant instead: synced is only ever set on a key in the
+# same step hasN is set (or was already set) for that key.
+invariant [synced_implies_hasN] synced(K) -> hasN(K)

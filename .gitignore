@@ -8,3 +8,4 @@ prototypes/p1-migration-model/tmp/
 *.itf.json
 .hypothesis/
 prototypes/p6-parameterized-proof/mypyvy/
+prototypes/p6-parameterized-proof/venv/
