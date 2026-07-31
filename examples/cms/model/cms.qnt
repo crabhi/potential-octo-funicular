@@ -170,6 +170,29 @@ module cms {
 
   val invAll = and { invNoUnauthorizedActions, invPublishRequiresReview }
 
+  // ---- Inductive invariant (proof at EVERY depth; see research/10) --------
+  //
+  // For cms_live, indInv is inductive: every action's guard re-checks the
+  // LIVE role/active state, so the ghost lastActionOk is re-established by
+  // the guards themselves. For cms_cached the SAME invariant fails
+  // consecution (counterexample-to-induction: a session caching EDITOR for
+  // a user whose live role was demoted) — the live/cached asymmetry as a
+  // machine-checked fact rather than a simulation finding.
+
+  val indShape = and {
+    role.in(setOfMaps(USERS, Set(AUTHOR, EDITOR))),
+    active.in(setOfMaps(USERS, Bool)),
+    sess.in(setOfMaps(USERS, tuples(Bool, Set(AUTHOR, EDITOR), Bool))),
+    artState.in(setOfMaps(ARTICLES, Set(DRAFT, IN_REVIEW, PUBLISHED))),
+    artAuthor.in(setOfMaps(ARTICLES, USERS)),
+    lastActionOk.in(Bool),
+  }
+
+  val indInv = and {
+    indShape,
+    lastActionOk,
+  }
+
   // ---- Features (must-work properties) -----------------------------------
   //
   // Safety invariants alone are gameable: a CMS that rejects every request

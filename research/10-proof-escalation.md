@@ -79,7 +79,7 @@ tests are only an approximation."
 
 | Track | What gets PROVEN | Tool | Status |
 |---|---|---|---|
-| I | Migration safety at every depth (inductive invariant, fixed constants) | Quint/Apalache `--inductive-invariant` | in progress |
+| I | Migration safety at every depth (inductive invariant, fixed constants) | Quint/Apalache `--inductive-invariant` | **PROVEN** (both models; see episode log) |
 | J | Same protocol, ANY number of keys/instances (parameterized) + invariant inference | mypyvy (PDR∀) / Ivy | in progress |
 | K | CMS noninterference: draft contents never influence anonymous observations (hyperproperty via self-composition) | Quint/Apalache on self-composed model | in progress |
 | L | Real Rust code proof beyond the pure kernel: session/identity state machine in the app | Verus | in progress |
@@ -89,4 +89,18 @@ tests are only an approximation."
 
 ## Episode log
 
-(appended as results land)
+- **Track I (2026-07-31): PROVEN.** (a) Migration protocol: replaced the
+  unbounded SI version counter with an equivalent finite dirty-flag
+  encoding, wrote the 7-conjunct strengthening (phase-shape coupling,
+  O==logical while O live, N==logical once N readable, drain monotone,
+  backfill-only-in-expanded, logical≠NULL) + Apalache shape constraints;
+  all three obligations verified in ~10s. Safety now holds at EVERY depth
+  (fixed 2x2x2 constants — Track J owns the size generalization).
+  (b) CMS model: for cms_live the invariant is inductive with essentially
+  NO strengthening beyond the ghost itself — live guards re-establish the
+  policy at every step (proof-shaped evidence that check-at-use is the
+  structurally right design). The SAME invariant fails consecution on
+  cms_cached with a concrete CTI (cached EDITOR, demoted live role): the
+  live/cached asymmetry is now a machine-checked theorem pair, not a
+  simulation finding. Lesson worth keeping: "how much strengthening does
+  the proof need" is itself a design-quality signal.
