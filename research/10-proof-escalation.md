@@ -81,7 +81,7 @@ tests are only an approximation."
 |---|---|---|---|
 | I | Migration safety at every depth (inductive invariant, fixed constants) | Quint/Apalache `--inductive-invariant` | **PROVEN** (both models; see episode log) |
 | J | Same protocol, ANY number of keys/instances (parameterized) + invariant inference | mypyvy (PDR∀) / Ivy | in progress |
-| K | CMS noninterference: draft contents never influence anonymous observations (hyperproperty via self-composition) | Quint/Apalache on self-composed model | in progress |
+| K | CMS noninterference: draft contents never influence anonymous observations (hyperproperty via self-composition) | Quint/Apalache on self-composed model | **PROVEN** (inductive, safe config) + machine-found leak distinguisher (leaky config) |
 | L | Real Rust code proof beyond the pure kernel: session/identity state machine in the app | Verus | in progress |
 | M | Migration completion: liveness under fairness as a temporal proof | Apalache `--temporal` / TLC + WF on compiled TLA+ | in progress |
 | N | Refinement: serializable ⊑ SI; app-level model ⊑ abstract model | TLA+ refinement mapping | planned |
