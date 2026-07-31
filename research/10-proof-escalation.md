@@ -82,7 +82,7 @@ tests are only an approximation."
 | I | Migration safety at every depth (inductive invariant, fixed constants) | Quint/Apalache `--inductive-invariant` | **PROVEN** (both models; see episode log) |
 | J | Same protocol, ANY number of keys/instances (parameterized) + invariant inference | mypyvy (PDR∀) / Ivy | in progress |
 | K | CMS noninterference: draft contents never influence anonymous observations (hyperproperty via self-composition) | Quint/Apalache on self-composed model | **PROVEN** (inductive, safe config) + machine-found leak distinguisher (leaky config) |
-| L | Real Rust code proof beyond the pure kernel: session/identity state machine in the app | Verus | in progress |
+| L | Real Rust code proof beyond the pure kernel: session/identity state machine in the app | Dafny (Verus proxy-blocked) | **PROVEN** — freshness, revocation/demotion immediacy, cached-stale witness; buggy variant rejected |
 | M | Migration completion: liveness under fairness as a temporal proof | TLC + WF (hand-ported TLA+) | **PROVEN, stronger than designed** — no interference assumption needed; rollout fairness shown necessary |
 | N | Refinement: serializable ⊑ SI; app-level model ⊑ abstract model | TLA+ refinement mapping | planned |
 | O | Verified enforcement monitor for migration-state transitions | synthesized from spec | planned |
@@ -101,6 +101,15 @@ tests are only an approximation."
   (Track K, same day: noninterference proven inductively via
   self-composition; leaky-search variant yields a machine-found two-world
   distinguisher — see examples/cms/noninterference/.)
+- **Track L (2026-07-31): PROVEN (Dafny; Verus release downloads
+  proxy-blocked).** Session/identity state machine extracted from main.rs
+  (cited lines): FreshnessLive, RevocationImmediate, DemotionImmediate
+  proven (14/14 VCs); CachedStaleAfterDeactivation as a machine-checked
+  existence witness — the code-level twin of the model's CHECK_AT_ACTION
+  CTI. Buggy resolver correctly rejected (2 errors — it breaks freshness
+  too, a bonus finding). Open gap: extraction fidelity (reviewed-by-eye vs
+  main.rs); closing paths documented (codegen like dafny-authz,
+  differential proptest, Verus retry with network).
 - **Track I (2026-07-31): PROVEN.** (a) Migration protocol: replaced the
   unbounded SI version counter with an equivalent finite dirty-flag
   encoding, wrote the 7-conjunct strengthening (phase-shape coupling,
