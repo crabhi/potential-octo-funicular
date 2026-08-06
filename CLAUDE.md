@@ -50,6 +50,17 @@ Start at `research/INDEX.md`. Scoreboards with falsifiers: `research/09`,
 9. **Update notes and push often**; `research/INDEX.md` is the index and
    change log.
 
+## Workflow
+
+- **Work directly on the `master` branch.** Commit and push often — after
+  each incremental change. If push fails because the remote moved, merge
+  or rebase; be careful never to overwrite others' commits (no force
+  pushes to master).
+- **Keep the slides up to date** (`docs/slides/make_slides.py` →
+  `formal-guardrails-slides.pdf`). Don't just append slides: always
+  regenerate the deck ground-up so it describes the current state of the
+  repository.
+
 ## Environment notes
 
 - GitHub downloads are proxy-blocked: TLC via `nightly.tlapl.us`, Dafny via
