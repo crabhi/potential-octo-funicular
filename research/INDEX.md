@@ -14,11 +14,23 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [07-synthesis.md](07-synthesis.md) | Cross-cutting synthesis: candidate architectures & recommendation | draft |
 | [08-workflow-vision.md](08-workflow-vision.md) | Holistic workflow: roles, contract, novelty, adoption path | draft |
 | [09-bridging-the-gap.md](09-bridging-the-gap.md) | M4 phase log: five bridge tracks, scoreboard, episode results | living |
+| [10-proof-escalation.md](10-proof-escalation.md) | Proof escalation: inductive/parameterized/liveness/hyperproperties, phase 3 charter | living |
+| [11-fstar-llm-abstraction.md](11-fstar-llm-abstraction.md) | F* as rule language for LLM workflow? Verdict: not primary for SaaS; steal 3DGen DSL pattern | draft |
 
 Worked examples live under `examples/` (currently: `examples/cms/` — a CMS
 guarded by the full pipeline; its README is the workflow narrative).
 
 ## Change log
+
+- 2026-08-06: CLAUDE.md now states the evaluation context explicitly — a
+  regular web SaaS application. 11-fstar-llm-abstraction.md drafted: F*
+  desk research (Pulse/PulseCore, FStarDataSet ⅓–½ LLM proof rate vs
+  Dafny 86%, 3DGen agent+DSL pattern, F* absent from POPL'26 vericoding
+  benchmark). Verdict: not the primary rule language for SaaS; two ideas
+  worth stealing (constrained-DSL-with-verified-toolchain, effects as
+  by-construction boundaries). Falsifiers F1–F3 logged; hands-on parked
+  on toolchain feasibility (GitHub 403; opam path untested). Also added
+  the missing note-10 row to the table above.
 
 - 2026-07-30 (M4 phase 2, "strong guarantees over NL guidance"): Track F —
   gate-strengthened repair loop forces the full fix in 1 round with an

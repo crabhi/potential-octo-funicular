@@ -113,6 +113,10 @@
 - Limited ecosystem; specialized tooling and training overhead.
 
 ### Lean 4 & F*
+
+> 2026-08-06: F* assessment deepened in
+> [11-fstar-llm-abstraction.md](11-fstar-llm-abstraction.md) (Pulse,
+> FStarDataSet, 3DGen); the row above stands, with nuance.
 **Strengths:**
 - Lean 4: proof assistant of choice for AI-driven mathematics (AlphaProof, DeepSeek-Prover 2024–2025); Lean Atlas (human-AI collaboration).
 - F*: verified compiler/protocol projects; strong SMT integration.

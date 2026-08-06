@@ -8,6 +8,12 @@ engines (SMT, model checkers, provers) — not humans — hold the code to the
 rules. Prefer proving that something *never/always* happens; tests are only
 an approximation for the model↔code boundary.
 
+**Context: we are exploring this for the development of a regular web SaaS
+application** — CRUD/API handlers, authz, billing, tenancy, schema
+migrations, background jobs — not kernels, crypto, or avionics. Evaluate
+every tool/technique against that setting: ordinary product teams, CI
+budgets, mainstream languages at the edges, LLM agents doing the code work.
+
 Start at `research/INDEX.md`. Scoreboards with falsifiers: `research/09`,
 `research/10`. Every prototype has a one-command entry (`check.sh`,
 `demo.sh`, `run_demo.sh`).
