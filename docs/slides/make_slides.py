@@ -524,11 +524,52 @@ bullets(504, 336, [
 ], 402, size=9.6, gap=6, dot_color=OK)
 text_block(40, 196,
            "Falsifiable predictions logged (F1–F3), incl.: a DSL-with-verified-checker loop for tenant isolation beats the "
-           "P4 gate on round count with zero per-feature proofs — testable today in our existing stack (P2's Z3 core).",
+           "P4 gate on round count with zero per-feature proofs — testable today in our existing stack (P2's Z3 core). "
+           "Since logged: industry confirmed the shape three times over — next slide.",
            size=12, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 15
+header("Scaling rung 5", "Five ways proofs meet code — ranked for an LLM-built SaaS (note 12)")
+patterns = [
+    ("1 · Verified engine + small DSL", "zero proofs/feature", OK,
+     "Prove the engine once, agents write rules in an analyzable DSL. AWS shipped this shape three times: Cedar "
+     "(Lean-proven authorizer + symbolic policy analysis proven sound AND complete — every verdict carries a concrete "
+     "counterexample request), Bedrock Automated Reasoning checks, AgentCore's NL→Cedar loop with symbolic feedback. "
+     "Note 11's F3 direction, industry-confirmed."),
+    ("2 · Proven kernel, generated & embedded", "cloud-scale proof", OK,
+     "Track D at scale: AWS rewrote IAM authorization in Dafny→Java — ~10^9 authorizations/second, spec validated by "
+     "shadow-testing 10^15 production samples. Dafny is the LLM sweet spot: 86–93% on proof benchmarks; its top toolchains "
+     "independently converged on our frozen-spec diff-check (guardrail 1)."),
+    ("3 · Proofs in the code — Rust only, honestly", "now CI-priced", ACCENT_D,
+     "VeruSAGE: agents complete 81% of 849 proof tasks from 8 real verified systems at ~$5.61 and ~7 min per task. "
+     "Flux adds a cheap refinement-type tier (specs on signatures, inference does the rest). Go costs 4–10 spec lines "
+     "per code line; TypeScript and Python have no sound static story — the honest answer is Rust or nothing."),
+    ("4 · Types as by-construction boundaries", "zero CI cost", ACCENT_D,
+     "Track G's Grant<Op> tokens: ordinary compiler, no solver. Composes under every other pattern — the kernel's "
+     "guarantees only reach the app if bypass is a compile error."),
+    ("5 · Verified runtime enforcement", "two gaps to own", WARN,
+     "Monitor synthesis is production-thin. Found instead: NO invariant→Postgres-constraint compiler exists (theory "
+     "ready: invariant confluence), and NO verified schema-migration tool exists — our P1 + tracks I/J/M is the "
+     "state of the art. New falsifiers R1–R5, prototypes P8 (Cedar shootout) and P9 (constraint compiler)."),
+]
+yy = H - 128
+for t, tag, col, b in patterns:
+    ph = 66 if len(b) > 220 else 50
+    panel(40, yy - ph, 880, ph)
+    c.setFont(FB, 10.5)
+    c.setFillColor(col)
+    c.drawString(54, yy - 17, t)
+    chip(768, yy - 21, tag, color=col)
+    text_block(54, yy - 31, b, size=9.0, width=700)
+    yy -= ph + 6
+text_block(40, yy - 4,
+           "Nobody has published LLM-generated, machine-verified authz/billing/tenancy/migration logic — every production "
+           "verified artifact above was hand-written by experts. That unoccupied intersection is this project's lane.",
+           size=10.5, width=880, color=ACCENT_D)
+footer(); c.showPage()
+
+# ---------------------------------------------------------------- slide 16
 header("Guardrails · CLAUDE.md", "What we learned the hard way — now enforced")
 gr = [
     ("The spec is frozen for agents", "Enforced mechanically — diff the frozen region, revert, fail the round. Never by convention or prompt."),
@@ -552,7 +593,7 @@ for i, (t, b) in enumerate(gr):
     text_block(x + 14, yy - 36, b, size=9.6, width=yw - 28)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 16
+# ---------------------------------------------------------------- slide 17
 header("Roadmap", "What's proven, what's parked, what's next")
 c.setFont(FB, 13)
 c.setFillColor(OK)
@@ -565,10 +606,10 @@ c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
 c.drawString(40, H - 250, "Next")
 bullets(40, H - 274, [
-    "Track N — refinement mappings: prove serializable refines snapshot isolation, and an app-shaped model refines the abstract one (shrinks the tested residue to “code matches low-level model”).",
-    "Track O — verified runtime enforcement: a monitor synthesized from the spec shields effects even over unverified code (the Grant token's dynamic cousin).",
-    "F* falsifiers F1–F3 — incl. the 3DGen-shaped experiment: constrained DSL + pre-verified checker, zero per-feature prover calls (doable in the existing stack).",
-    "TCB accounting as a first-class artifact — every “proven” names what it trusts (compilers, extraction fidelity, the HTTP layer) and directs the next escalation.",
+    "P8 — Cedar shootout (note 12, R1): the same 10 CMS rules as Cedar policies; does the Lean-proven symbolic analysis reproduce our P2 oracle's verdicts, counterexamples included?",
+    "P9 — invariant→Postgres compiler (R2): constraints/triggers where sound, isolation side-conditions explicit, residual obligations routed to the model checker. No such tool exists anywhere.",
+    "Track N — refinement mappings (serializable refines SI; app-shaped refines abstract) · Track O — verified runtime enforcement · F3 DSL loop, now industry-backed · Flux spike (R5).",
+    "TCB accounting as a first-class artifact — every “proven” names what it trusts (note 12 has the per-pattern table) and directs the next escalation.",
 ], 880, size=11.5, gap=7)
 c.setFont(FB, 13)
 c.setFillColor(MUTED)
@@ -579,7 +620,7 @@ text_block(40, 106,
            size=11, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 17
+# ---------------------------------------------------------------- slide 18
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillColor(ACCENT)
@@ -597,7 +638,7 @@ for i, ln in enumerate([
     c.drawString(70, 350 - i * 28, ln)
 c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
-c.drawString(70, 188, "Repo: research/INDEX.md (all notes) · research/09 & 10 (scoreboards with falsifiers) · CLAUDE.md (guardrails)")
+c.drawString(70, 188, "Repo: research/INDEX.md (all notes) · research/09, 10 & 12 (scoreboards with falsifiers) · CLAUDE.md (guardrails)")
 c.drawString(70, 168, "Prototypes: p1 check.sh · p2 demo.sh · p3 run_demo.sh · p4 agent loop · p5 optimization loop · p6 mypyvy · p7 TLC")
 c.drawString(70, 148, "Worked example: examples/cms — model, app, oracle, MBT, trace validation, noninterference, Dafny kernel; all runnable")
 footer(title_page=True)
