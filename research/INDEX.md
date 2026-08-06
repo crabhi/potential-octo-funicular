@@ -22,6 +22,13 @@ guarded by the full pipeline; its README is the workflow narrative).
 
 ## Change log
 
+- 2026-08-06 (workflow): new CLAUDE.md rules — work directly on master,
+  commit+push per incremental change, and always regenerate the slide
+  deck ground-up from the repo state. Applied: F* research merged to
+  master; docs/slides regenerated from scratch (17 slides — now covers
+  M4 phases 1–3, tracks A–M, P4/P5 results, the proof-escalation ladder,
+  and the F* verdict; previously the deck stopped at M3).
+
 - 2026-08-06: CLAUDE.md now states the evaluation context explicitly — a
   regular web SaaS application. 11-fstar-llm-abstraction.md drafted: F*
   desk research (Pulse/PulseCore, FStarDataSet ⅓–½ LLM proof rate vs
