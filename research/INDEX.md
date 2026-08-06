@@ -16,11 +16,30 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [09-bridging-the-gap.md](09-bridging-the-gap.md) | M4 phase log: five bridge tracks, scoreboard, episode results | living |
 | [10-proof-escalation.md](10-proof-escalation.md) | Proof escalation: inductive/parameterized/liveness/hyperproperties, phase 3 charter | living |
 | [11-fstar-llm-abstraction.md](11-fstar-llm-abstraction.md) | F* as rule language for LLM workflow? Verdict: not primary for SaaS; steal 3DGen DSL pattern | draft |
+| [12-rung5-proofs-in-code-from-spec.md](12-rung5-proofs-in-code-from-spec.md) | Rung 5 expanded: five patterns for proofs-in-code / code-from-spec in an LLM-built SaaS; Cedar/Dafny/Verus evidence; gaps we can own | draft |
 
 Worked examples live under `examples/` (currently: `examples/cms/` — a CMS
 guarded by the full pipeline; its README is the workflow narrative).
 
 ## Change log
+
+- 2026-08-06 (rung 5 expanded): 12-rung5-proofs-in-code-from-spec.md
+  drafted from three parallel research sweeps. Rung 5 split into five
+  patterns ranked for LLM-built SaaS: (1) verified engine + DSL surface —
+  the 3DGen shape is now shipped thrice by AWS (Cedar with Lean proofs +
+  proven-complete symbolic analysis, Bedrock AR checks, AgentCore Policy's
+  NL→Cedar loop), confirming note 11's F3 direction; (2) proven kernel
+  generated & embedded — track D validated at cloud scale (AWS IAM authz
+  engine in Dafny→Java, 10⁹ req/s, spec closed by 10¹⁵-sample shadow
+  testing); (3) proofs-in-code, Rust-only in practice (VeruSAGE 81% of 849
+  real proof tasks at ~$5.61/task; Flux as cheap refinement tier);
+  (4) by-construction types; (5) verified runtime enforcement. Key gaps
+  found: NO published LLM-vericoded business logic anywhere (our lane);
+  no verified schema-migration tool (we're the SOTA); no
+  invariant→Postgres-constraint compiler. New falsifiers R1–R5 +
+  prototypes P8 (Cedar shootout), P9 (invariant→constraint compiler).
+  Slides regenerated (18 slides — new rung-5 patterns slide; roadmap
+  updated).
 
 - 2026-08-06 (workflow): new CLAUDE.md rules — work directly on master,
   commit+push per incremental change, and always regenerate the slide
