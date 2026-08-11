@@ -17,11 +17,32 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [10-proof-escalation.md](10-proof-escalation.md) | Proof escalation: inductive/parameterized/liveness/hyperproperties, phase 3 charter | living |
 | [11-fstar-llm-abstraction.md](11-fstar-llm-abstraction.md) | F* as rule language for LLM workflow? Verdict: not primary for SaaS; steal 3DGen DSL pattern | draft |
 | [12-rung5-proofs-in-code-from-spec.md](12-rung5-proofs-in-code-from-spec.md) | Rung 5 expanded: five patterns for proofs-in-code / code-from-spec in an LLM-built SaaS; Cedar/Dafny/Verus evidence; gaps we can own | draft |
+| [13-rule-based-cms.md](13-rule-based-cms.md) | Rule-based systems as the programming surface: rules ARE the program, solver reviews the rule base, engine proven once; falsifiers RB1–RB5 | draft |
 
-Worked examples live under `examples/` (currently: `examples/cms/` — a CMS
-guarded by the full pipeline; its README is the workflow narrative).
+Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
+the full pipeline, formal-methods framing (spec beside code); and
+`examples/rule-driven-cms/` — the same domain rebuilt ground-up under the
+rule-based framing (the rule base is the program; note 13).
 
 ## Change log
+
+- 2026-08-11 (rule-based reframing): the developer asked what ground-up
+  development of a full web service looks like, and whether rule-based
+  systems beat "formal methods" as the framing. Built
+  `examples/rule-driven-cms/`: the whole CMS as one declarative rule base
+  (105 lines) executed by a domain-free engine (~975 lines Python, zero
+  domain words — proven by running a second service, tickets, on it
+  unchanged). One condition grammar with two backends (runtime eval + Z3),
+  agreement checked exhaustively over all 3,600 situations. Analyzer gates
+  every rule change: dead rules, ∀-safety, ∃-possibility, lifecycle
+  liveness, frozen feature runs with expected-denials-by-name. Buggy
+  variant (privacy deny added, separation-of-duties deny removed) → 6
+  named findings against the frozen gate; a redundant guard was *proven*
+  dead and deleted during development. Verdict in
+  13-rule-based-cms.md: rules as the programming surface, solver as
+  reviewer, proofs concentrated on the once-proven engine (note 12
+  pattern 1, widened from authz to the whole service); falsifiers RB1–RB5.
+  Slides regenerated ground-up.
 
 - 2026-08-06 (rung 5 expanded): 12-rung5-proofs-in-code-from-spec.md
   drafted from three parallel research sweeps. Rung 5 split into five

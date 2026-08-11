@@ -43,6 +43,7 @@ falsified two protocol designs a careful engineer believed correct
 | `prototypes/p2-invariant-oracle/` | Z3 oracle: contradictions, witnesses, vacuity, claim verdicts | `./demo.sh` |
 | `prototypes/p3-conformance-harness/` | Rust API ×2 versions + Postgres + live migration under concurrent load | `./run_demo.sh` |
 | `examples/cms/` | **Worked example**: a CMS (roles, drafts, public access) guarded by the full pipeline — rules → oracle → model → real app | see its README |
+| `examples/rule-driven-cms/` | **Worked example, inverted framing**: the whole CMS ground-up as a rule base executed by a generic engine; Z3 analyzes the rules themselves (research note 13) | `./check.sh` |
 
 ## Prerequisites
 
