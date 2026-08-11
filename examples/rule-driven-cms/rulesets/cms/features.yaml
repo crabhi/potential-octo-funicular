@@ -1,0 +1,68 @@
+# The gate, direction 2: concrete end-to-end scenarios that must keep
+# working. Each feature narrates one implicit article; steps name the actor
+# and action, and — for expected refusals — the exact rule that must deny
+# (one vocabulary from rule to 403). FROZEN for agents, like safety.yaml.
+#
+# The analyzer replays these against the pure decision engine; the live
+# demo replays the same file over real HTTP.
+
+actors:
+  alice: {role: author}
+  bob:   {role: author}
+  ed:    {role: editor}
+  erin:  {role: editor}
+  ada:   {role: admin}
+  vera:  {role: viewer}
+  dana:  {role: author, active: false}
+
+features:
+  - id: feat_publish_lifecycle
+    description: "The core loop: an author drafts and submits, an editor
+      reviews and publishes, the public reads."
+    steps:
+      - {actor: alice, action: create, set: {title: "Hello", body: "World"},
+         expect: allow, state_after: draft}
+      - {actor: alice, action: edit, set: {body: "World, revised"}, expect: allow}
+      - {actor: alice, action: submit, expect: allow, state_after: in_review}
+      - {actor: ed, action: read, expect: allow}
+      - {actor: ed, action: publish, expect: allow, state_after: published}
+      - {actor: anonymous, action: read, expect: allow}
+
+  - id: feat_rejection_loop
+    description: "Review can send work back: an incomplete article cannot
+      be published, gets rejected, is fixed, and then goes out."
+    steps:
+      - {actor: bob, action: create, set: {title: "Draft only"}, expect: allow}
+      - {actor: bob, action: submit, expect: allow, state_after: in_review}
+      - {actor: erin, action: publish, expect: deny, denied_by: publish_needs_content}
+      - {actor: erin, action: reject, expect: allow, state_after: draft}
+      - {actor: bob, action: edit, set: {body: "Now with a body"}, expect: allow}
+      - {actor: bob, action: submit, expect: allow}
+      - {actor: erin, action: publish, expect: allow, state_after: published}
+      - {actor: erin, action: archive, expect: allow, state_after: archived}
+
+  - id: feat_no_self_publish
+    description: "Separation of duties end to end: an editor writes their
+      own article but cannot publish it; a second editor can."
+    steps:
+      - {actor: ed, action: create, set: {title: "Mine", body: "By me"},
+         expect: allow}
+      - {actor: ed, action: submit, expect: allow}
+      - {actor: ed, action: publish, expect: deny, denied_by: no_self_decision}
+      - {actor: ada, action: read, expect: allow}
+      - {actor: erin, action: publish, expect: allow, state_after: published}
+
+  - id: feat_boundaries_hold
+    description: "The refusals that make the system safe, by name: viewers
+      and anonymous visitors can't see drafts, deactivated accounts are
+      locked out."
+    steps:
+      - {actor: alice, action: create, set: {title: "Secret", body: "Draft"},
+         expect: allow}
+      - {actor: vera, action: read, expect: deny, denied_by: default_deny}
+      - {actor: anonymous, action: read, expect: deny, denied_by: default_deny}
+      - {actor: dana, action: read, expect: deny, denied_by: deny_inactive}
+      - {actor: vera, action: edit, set: {title: "hacked"}, expect: deny,
+         denied_by: default_deny}
+      - {actor: alice, action: submit, expect: allow, state_after: in_review}
+      - {actor: anonymous, action: read, expect: deny, denied_by: default_deny}

@@ -1,0 +1,68 @@
+# The gate, direction 1: what must NEVER happen (safety, checked for ALL
+# situations by Z3) and what must remain POSSIBLE (so a "fix" cannot
+# quietly turn the CMS into a system that safely does nothing).
+#
+# This file is FROZEN for agents editing rules.yaml — same contract as the
+# invariant files elsewhere in this repo. `requires` must hold in every
+# situation the rules allow; `witness` must be satisfiable in at least one.
+
+safety:
+  - id: S1_public_reads_published_only
+    description: "Anonymous visitors and plain viewers can only ever read,
+      and only published articles."
+    requires: 'implies(actor.role in ["anonymous", "viewer"],
+                       action == "read" and resource.state == "published")'
+
+  - id: S2_separation_of_duties
+    description: "No one — including admins — ever publishes their own
+      article."
+    requires: 'implies(action == "publish", not actor.is_author)'
+
+  - id: S3_inactive_locked_out
+    description: "A deactivated account can do nothing at all."
+    requires: 'actor.active'
+
+  - id: S4_publish_only_from_review
+    description: "Publication always goes through review: publish is only
+      possible on an article that is in review."
+    requires: 'implies(action == "publish", resource.state == "in_review")'
+
+  - id: S5_no_empty_publish
+    description: "Nothing gets published without a title and a body."
+    requires: 'implies(action == "publish",
+                       resource.has_title and resource.has_body)'
+
+  - id: S6_draft_privacy
+    description: "A draft is visible only to its author, editors, and
+      admins."
+    requires: 'implies(action == "read" and resource.state == "draft",
+                       actor.is_author or actor.role in ["editor", "admin"])'
+
+  - id: S7_archived_readonly
+    description: "An archived article is read-only for everyone below
+      admin."
+    requires: 'implies(resource.state == "archived",
+                       action == "read" or actor.role == "admin")'
+
+possibility:
+  - id: P1_someone_can_publish
+    description: "Publishing is actually possible for someone."
+    witness: 'action == "publish"'
+
+  - id: P2_review_by_non_author
+    description: "Someone other than the author can read an article under
+      review — the editorial workflow exists."
+    witness: 'action == "read" and resource.state == "in_review"
+              and not actor.is_author'
+
+  - id: P3_authors_can_create
+    description: "Authors can create articles."
+    witness: 'actor.role == "author" and action == "create"'
+
+  - id: P4_content_can_be_archived
+    description: "Articles can be archived."
+    witness: 'action == "archive"'
+
+  - id: P5_public_site_works
+    description: "Anonymous visitors can do something (read the site)."
+    witness: 'actor.role == "anonymous"'

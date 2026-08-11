@@ -1,0 +1,23 @@
+# Frozen feature runs for the tickets rule base.
+
+actors:
+  carol: {role: customer}
+  aaron: {role: agent}
+  amy:   {role: admin}
+
+features:
+  - id: feat_ticket_lifecycle
+    description: "A customer opens and edits a ticket; an agent closes it;
+      the customer cannot edit it closed; the agent reopens it."
+    steps:
+      - {actor: carol, action: create, set: {subject: "It is broken"},
+         expect: allow, state_after: open}
+      - {actor: carol, action: edit, set: {subject: "It is VERY broken"},
+         expect: allow}
+      - {actor: aaron, action: read, expect: allow}
+      - {actor: aaron, action: close, expect: allow, state_after: closed}
+      - {actor: carol, action: read, expect: allow}
+      - {actor: carol, action: edit, set: {subject: "hello?"}, expect: deny,
+         denied_by: closed_is_frozen}
+      - {actor: aaron, action: reopen, expect: allow, state_after: open}
+      - {actor: carol, action: edit, set: {subject: "thanks"}, expect: allow}

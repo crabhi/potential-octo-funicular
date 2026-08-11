@@ -1,0 +1,105 @@
+# The CMS. This file IS the application: the generic engine executes it,
+# the analyzer reasons about it. Every rule carries the stakeholder
+# sentence it translates — review happens here, sentence by sentence.
+#
+# Semantics: deny overrides allow; nothing matching means deny
+# (default_deny). Transitions are structurally guarded by the lifecycle
+# table before rules are consulted.
+
+entity: article
+
+roles: [anonymous, viewer, author, editor, admin]
+
+states: [draft, in_review, published, archived]
+
+fields: [title, body]
+
+lifecycle:
+  transitions:
+    - {action: create,    from: none,      to: draft}
+    - {action: submit,    from: draft,     to: in_review}
+    - {action: reject,    from: in_review, to: draft}
+    - {action: publish,   from: in_review, to: published}
+    - {action: unpublish, from: published, to: draft}
+    - {action: archive,   from: published, to: archived}
+
+# Environment assumptions: facts the surrounding system guarantees, which
+# the analyzer may rely on. They are part of the reviewable spec — a wrong
+# assumption is a wrong system (see README on the demotion gap).
+assumptions:
+  - id: a_authors_are_staff
+    description: "Only staff (authors, editors, admins) ever author articles,
+      because only they can create them and authorship never changes."
+    holds: 'implies(actor.is_author, actor.role in ["author", "editor", "admin"])'
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+
+rules:
+  # ---- denies (checked first; a deny beats every allow) ----
+  - id: deny_inactive
+    description: "A deactivated account may not do anything."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: no_self_decision
+    description: "Nobody may publish or reject an article they authored
+      themselves — separation of duties, with no exception for admins."
+    effect: deny
+    when: 'action in ["publish", "reject"] and actor.is_author'
+
+  - id: publish_needs_content
+    description: "An article without both a title and a body may not be
+      published."
+    effect: deny
+    when: 'action == "publish" and not (resource.has_title and resource.has_body)'
+
+  # ---- allows ----
+  - id: public_read_published
+    description: "Anyone, including anonymous visitors, may read a
+      published article."
+    effect: allow
+    when: 'action == "read" and resource.state == "published"'
+
+  - id: staff_create
+    description: "Authors and editors may create new articles."
+    effect: allow
+    when: 'actor.role in ["author", "editor"] and action == "create"'
+
+  - id: own_draft
+    description: "While an article is a draft, its author may read, edit,
+      delete, and submit it."
+    effect: allow
+    when: 'actor.is_author and resource.state == "draft"
+           and action in ["read", "edit", "delete", "submit"]'
+
+  - id: author_read_own
+    description: "An author may always read their own article, whatever
+      state it is in."
+    effect: allow
+    when: 'actor.is_author and action == "read"'
+
+  - id: editor_read_all
+    description: "Editors may read every article in the system."
+    effect: allow
+    when: 'actor.role == "editor" and action == "read"'
+
+  - id: editor_decide
+    description: "Editors may edit an article under review and decide it:
+      reject it back to draft or publish it."
+    effect: allow
+    when: 'actor.role == "editor" and resource.state == "in_review"
+           and action in ["edit", "reject", "publish"]'
+
+  - id: editor_manage_published
+    description: "Editors may take a published article down: back to draft
+      (unpublish) or out of circulation (archive)."
+    effect: allow
+    when: 'actor.role == "editor" and resource.state == "published"
+           and action in ["unpublish", "archive"]'
+
+  - id: admin_all
+    description: "Admins may do anything (except what a deny above forbids
+      for everyone)."
+    effect: allow
+    when: 'actor.role == "admin"'

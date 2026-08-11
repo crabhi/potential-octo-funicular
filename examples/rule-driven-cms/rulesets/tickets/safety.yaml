@@ -1,0 +1,30 @@
+# Frozen gate for the tickets rule base (same format as the CMS gate).
+
+safety:
+  - id: T1_anonymous_nothing
+    description: "Anonymous visitors can do nothing with tickets."
+    requires: 'actor.role != "anonymous"'
+
+  - id: T2_customers_read_only_own
+    description: "A customer never reads someone else's ticket."
+    requires: 'implies(actor.role == "customer" and action == "read",
+                       actor.is_author)'
+
+  - id: T3_closed_is_untouchable
+    description: "Below admin, a closed ticket can only be read or
+      reopened."
+    requires: 'implies(resource.state == "closed",
+                       action in ["read", "reopen"] or actor.role == "admin")'
+
+  - id: T4_inactive_locked_out
+    description: "A deactivated account can do nothing."
+    requires: 'actor.active'
+
+possibility:
+  - id: TP1_tickets_can_close
+    description: "Someone can close a ticket."
+    witness: 'action == "close"'
+
+  - id: TP2_customers_can_open
+    description: "Customers can open tickets."
+    witness: 'actor.role == "customer" and action == "create"'
