@@ -1,0 +1,80 @@
+# Frozen feature runs for the receivables rule base. The file-level clock
+# sets the engine date; `advance_days` steps move it (pure runner adds
+# days; the HTTP replay uses the /__clock test seam).
+
+clock: {today: "2026-08-11"}
+
+actors:
+  rita:    {role: user}
+  uma:     {role: user}
+  dora:    {role: user, active: false}
+  feedbot: {role: bank_feed}
+  tick:    {role: clock}
+  mailer:  {role: notifier}
+  ada:     {role: admin}
+
+features:
+  - id: feat_register_and_settle
+    description: "A user registers a claim by payer name; the bank feed
+      matches the incoming payment and settles it; the ledger freezes."
+    steps:
+      - {actor: rita, action: create,
+         set: {amount: "120.00", payer_name: "John Smith",
+               due_date: "2026-08-20"},
+         expect: allow, state_after: awaiting}
+      - {actor: feedbot, action: read, expect: allow}
+      - {actor: feedbot, action: settle, expect: allow, state_after: paid}
+      - {actor: rita, action: read, expect: allow}
+      - {actor: rita, action: edit, set: {amount: "999.99"}, expect: deny,
+         denied_by: ledger_immutable}
+
+  - id: feat_overdue_and_late_payment
+    description: "Time cannot be rushed: overdue only after the due date;
+      the reminder mailer sees it; a late payment still lands."
+    steps:
+      - {actor: uma, action: create,
+         set: {amount: "75.50", reference: "INV-2026-002",
+               due_date: "2026-08-15"},
+         expect: allow, state_after: awaiting}
+      - {actor: tick, action: mark_overdue, expect: deny,
+         denied_by: no_premature_overdue}
+      - {advance_days: 30}
+      - {actor: tick, action: mark_overdue, expect: allow, state_after: overdue}
+      - {actor: mailer, action: read, expect: allow}
+      - {actor: feedbot, action: settle, expect: allow, state_after: paid}
+
+  - id: feat_isolation_and_containment
+    description: "Privacy and blast radius: users never see each other's
+      claims; no bot or admin can fake money truth; owners can give up."
+    steps:
+      - {actor: rita, action: create,
+         set: {amount: "500.00", payer_name: "Acme s.r.o.",
+               due_date: "2026-09-01"},
+         expect: allow}
+      - {actor: uma, action: read, expect: deny, denied_by: default_deny}
+      - {actor: anonymous, action: read, expect: deny, denied_by: default_deny}
+      - {actor: feedbot, action: edit, set: {amount: "0"}, expect: deny,
+         denied_by: default_deny}
+      - {actor: tick, action: settle, expect: deny, denied_by: only_feed_settles}
+      - {actor: ada, action: settle, expect: deny, denied_by: only_feed_settles}
+      - {actor: ada, action: read, expect: allow}
+      - {actor: rita, action: write_off, expect: allow, state_after: written_off}
+      - {actor: ada, action: edit, set: {amount: "1"}, expect: deny,
+         denied_by: ledger_immutable}
+
+  - id: feat_wellformed_registration
+    description: "The registration contract from the ticket: amount + due
+      date + (payer name or reference); deactivated accounts are locked out."
+    steps:
+      - {actor: rita, action: create,
+         set: {amount: "10.00", due_date: "2026-09-01"},
+         expect: deny, denied_by: claim_needs_identification}
+      - {actor: rita, action: create,
+         set: {payer_name: "Beta LLC", due_date: "2026-09-01"},
+         expect: deny, denied_by: claim_needs_terms}
+      - {actor: dora, action: create,
+         set: {amount: "10.00", payer_name: "X", due_date: "2026-09-01"},
+         expect: deny, denied_by: deny_inactive}
+      - {actor: rita, action: create,
+         set: {amount: "10.00", reference: "REF-7", due_date: "2026-09-01"},
+         expect: allow, state_after: awaiting}

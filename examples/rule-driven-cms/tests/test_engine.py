@@ -17,6 +17,7 @@ from engine import conditions, features, rulebase  # noqa: E402
 
 CMS = rulebase.load(ROOT / "rulesets/cms/rules.yaml")
 TICKETS = rulebase.load(ROOT / "rulesets/tickets/rules.yaml")
+RECEIVABLES = rulebase.load(ROOT / "rulesets/receivables/rules.yaml")
 
 
 # --- condition language -------------------------------------------------------
@@ -48,7 +49,8 @@ def test_condition_evaluation():
 
 # --- exhaustive two-backend agreement ------------------------------------------
 
-@pytest.mark.parametrize("rb", [CMS, TICKETS], ids=["cms", "tickets"])
+@pytest.mark.parametrize("rb", [CMS, TICKETS, RECEIVABLES],
+                         ids=["cms", "tickets", "receivables"])
 def test_backends_agree_on_every_situation(rb):
     sym = SymbolTable(rb.vocabulary)
     conds = [r.when for r in rb.rules] + [a.holds for a in rb.assumptions]
@@ -115,3 +117,25 @@ def test_buggy_rules_fail_frozen_features():
     failed = [fid for fid, r in results if not r.ok]
     assert "feat_publish_lifecycle" in failed   # strict_privacy kills review
     assert "feat_no_self_publish" in failed     # missing deny caught by expected-denial
+
+
+# --- time (projections + multi-source transitions) -------------------------------
+
+def test_date_projection_follows_the_clock():
+    fields = {"amount": "10", "payer_name": "X", "reference": "",
+              "due_date": "2026-08-15"}
+    s_before = RECEIVABLES.situation("clock", True, False, "mark_overdue",
+                                     "awaiting", fields, today="2026-08-11")
+    s_after = RECEIVABLES.situation("clock", True, False, "mark_overdue",
+                                    "awaiting", fields, today="2026-09-10")
+    assert not s_before["resource.is_past_due"]
+    assert s_after["resource.is_past_due"]
+    assert RECEIVABLES.decide(s_before).id == "no_premature_overdue"
+    assert RECEIVABLES.decide(s_after).id == "clock_works"
+
+
+def test_multi_source_transition_legality():
+    assert RECEIVABLES.lifecycle_legal("settle", "awaiting")
+    assert RECEIVABLES.lifecycle_legal("settle", "overdue")
+    assert not RECEIVABLES.lifecycle_legal("settle", "paid")
+    assert RECEIVABLES.transition_for("settle", "overdue").target == "paid"

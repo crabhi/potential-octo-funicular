@@ -1,0 +1,93 @@
+# Frozen gate for the receivables rule base. Finance flavor: privacy is
+# absolute, money truth comes only from the bank, the ledger is
+# append-only, and time cannot be rushed.
+
+safety:
+  - id: R1_no_anonymous_access
+    description: "Anonymous visitors can do nothing here at all."
+    requires: 'actor.role != "anonymous"'
+
+  - id: R2_tenant_isolation
+    description: "Users only ever touch their own claims (creation aside —
+      a created claim is theirs by construction)."
+    requires: 'implies(actor.role == "user" and action != "create",
+                       actor.is_author)'
+
+  - id: R3_money_truth_from_bank
+    description: "Only the bank transaction feed ever settles a claim."
+    requires: 'implies(action == "settle", actor.role == "bank_feed")'
+
+  - id: R4_overdue_is_earned
+    description: "A claim is only ever marked overdue when its due date
+      has actually passed."
+    requires: 'implies(action == "mark_overdue", resource.is_past_due)'
+
+  - id: R5_ledger_append_only
+    description: "Paid and written-off claims can only ever be read —
+      by anyone, admins included."
+    requires: 'implies(resource.state in ["paid", "written_off"],
+                       action == "read")'
+
+  - id: R6_claims_wellformed
+    description: "Every claim that can be registered states amount, due
+      date, and a way to match the payment (payer name or reference)."
+    requires: 'implies(action == "create",
+                       resource.has_amount and resource.has_due_date
+                       and (resource.has_payer_name or resource.has_reference))'
+
+  - id: R7_feed_contained
+    description: "The bank feed can only read and settle."
+    requires: 'implies(actor.role == "bank_feed",
+                       action in ["read", "settle"])'
+
+  - id: R8_clock_contained
+    description: "The scheduler can only read and mark overdue."
+    requires: 'implies(actor.role == "clock",
+                       action in ["read", "mark_overdue"])'
+
+  - id: R9_notifier_readonly
+    description: "The reminder mailer can only read."
+    requires: 'implies(actor.role == "notifier", action == "read")'
+
+  - id: R10_nothing_is_deleted
+    description: "No situation ever allows deletion."
+    requires: 'action != "delete"'
+
+# The lifecycle table is gated too: money states are entered exactly one way.
+lifecycle:
+  only_into:
+    paid: [settle]
+    overdue: [mark_overdue]
+    written_off: [write_off]
+
+possibility:
+  - id: W1_money_can_arrive
+    description: "The feed can settle an awaiting claim."
+    witness: 'action == "settle" and resource.state == "awaiting"'
+
+  - id: W2_late_payment_still_lands
+    description: "A payment arriving after the due date still settles the
+      (now overdue) claim."
+    witness: 'action == "settle" and resource.state == "overdue"'
+
+  - id: W3_users_can_register
+    description: "A user can register a well-formed claim."
+    witness: 'actor.role == "user" and action == "create"'
+
+  - id: W4_clock_can_mark
+    description: "The scheduler can mark a past-due claim overdue."
+    witness: 'action == "mark_overdue"'
+
+  - id: W5_dashboard_works
+    description: "A user can read their own claim."
+    witness: 'actor.role == "user" and action == "read"'
+
+  - id: W6_owner_can_give_up
+    description: "An owner can write a claim off."
+    witness: 'action == "write_off" and actor.is_author'
+
+  - id: W7_notifier_sees_overdue
+    description: "The mailer can read an overdue claim (reminders are
+      possible)."
+    witness: 'actor.role == "notifier" and action == "read"
+              and resource.state == "overdue"'

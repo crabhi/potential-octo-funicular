@@ -96,9 +96,12 @@ class Analyzer:
     def _legal_formula(self):
         action, state = self.sym.const("action"), self.sym.const("resource.state")
         lit = self.sym.literal
-        clauses = [z3.Implies(action == lit("action", t.action),
-                              state == lit("resource.state", t.source))
-                   for t in self.rb.transitions]
+        by_action = {}
+        for t in self.rb.transitions:
+            by_action.setdefault(t.action, []).append(t.source)
+        clauses = [z3.Implies(action == lit("action", a),
+                              z3.Or(*[state == lit("resource.state", s) for s in sources]))
+                   for a, sources in by_action.items()]
         crud = z3.Or(*[action == lit("action", a) for a in rb_mod.CRUD_ACTIONS])
         clauses.append(z3.Implies(crud, state != lit("resource.state", rb_mod.NO_STATE)))
         return z3.And(*clauses)
@@ -256,8 +259,8 @@ class Analyzer:
     def run(self):
         rb = self.rb
         n_deny, n_allow = len(self.denies), len(self.allows)
-        n_situations = (len(rb.roles) * 2 * 2 * len(rb.actions)
-                        * (len(rb.states) + 1) * (2 ** len(rb.fields)))
+        n_situations = (len(rb.roles) * len(rb.actions) * (len(rb.states) + 1)
+                        * (2 ** len(rb.vocabulary.bools)))
         print(f"== rule-base analysis: {rb.name} ==")
         print(f"rules: {len(rb.rules)} ({n_deny} deny, {n_allow} allow) | "
               f"roles: {len(rb.roles)} | states: {len(rb.states)}(+none) | "

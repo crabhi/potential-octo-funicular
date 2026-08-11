@@ -30,7 +30,8 @@ from . import rulebase as rb_mod
 from . import store
 
 
-def make_handler(rb, conn):
+def make_handler(rb, conn, clock=None, mutable_clock=False):
+    clock = clock if clock is not None else {}
     plural = rb.entity + "s"
     route_one = re.compile(rf"^/{plural}/(\d+)$")
     route_action = re.compile(rf"^/{plural}/(\d+)/([a-z_]+)$")
@@ -84,7 +85,7 @@ def make_handler(rb, conn):
             fields = new_fields if row is None else {f: row[f] for f in rb.fields}
             is_author = True if row is None else actor.name == row["author"]
             situation = rb.situation(actor.role, actor.active, is_author,
-                                     action, state, fields)
+                                     action, state, fields, today=clock.get("today"))
             verdict = rb.decide(situation)
             if verdict.effect == "deny":
                 self.send_json(403, {"error": "forbidden", "denied_by": verdict.id,
@@ -120,10 +121,21 @@ def make_handler(rb, conn):
         def authorize_quiet(self, actor, action, row):
             situation = rb.situation(actor.role, actor.active,
                                      actor.name == row["author"], action,
-                                     row["state"], {f: row[f] for f in rb.fields})
+                                     row["state"], {f: row[f] for f in rb.fields},
+                                     today=clock.get("today"))
             return rb.decide(situation).effect == "allow"
 
         def do_POST(self):
+            if self.path == "/__clock":
+                # test seam, enabled only by --mutable-clock: lets demos and
+                # feature replays advance the engine's date deterministically
+                if not mutable_clock:
+                    return self.send_json(404, {"error": "no_such_route"})
+                body = self.read_body()
+                if not body or "today" not in body:
+                    return self.send_json(400, {"error": "bad_json"})
+                clock["today"] = str(body["today"])
+                return self.send_json(200, {"today": clock["today"]})
             actor = self.actor()
             if actor is None:
                 return self.send_json(401, {"error": "unknown_user"})
@@ -147,8 +159,8 @@ def make_handler(rb, conn):
             if row is None:
                 return
             if self.authorize(actor, action, row) is None:
-                store.update_item(conn, rb, row["id"],
-                                  {"state": rb.transition_for(action).target})
+                target = rb.transition_for(action, row["state"]).target
+                store.update_item(conn, rb, row["id"], {"state": target})
                 self.send_json(200, self.item_json(store.get_item(conn, row["id"])))
 
         def do_PUT(self):
@@ -187,18 +199,27 @@ def make_handler(rb, conn):
 
 
 def main():
+    import datetime
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--rules", required=True, help="ruleset directory (with rules.yaml)")
     ap.add_argument("--db", required=True)
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--seed", help="features.yaml whose actors become users")
+    ap.add_argument("--today", default=datetime.date.today().isoformat(),
+                    help="the engine's current date (ISO), feeding date projections")
+    ap.add_argument("--mutable-clock", action="store_true",
+                    help="test seam: enable POST /__clock to change the date")
     args = ap.parse_args()
 
     rb = rb_mod.load(f"{args.rules}/rules.yaml")
     seed_actors = features_mod.load(args.seed)[0] if args.seed else None
     conn = store.open_db(args.db, rb, seed_actors)
-    httpd = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(rb, conn))
-    print(f"READY port={httpd.server_address[1]} entity={rb.entity}", flush=True)
+    handler = make_handler(rb, conn, clock={"today": args.today},
+                           mutable_clock=args.mutable_clock)
+    httpd = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
+    print(f"READY port={httpd.server_address[1]} entity={rb.entity} "
+          f"today={args.today}", flush=True)
     httpd.serve_forever()
 
 

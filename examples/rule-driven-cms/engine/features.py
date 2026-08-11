@@ -10,6 +10,7 @@ Two executors share the step semantics:
 """
 
 import collections
+import datetime
 
 import yaml
 
@@ -25,36 +26,48 @@ class FeatureError(Exception):
     pass
 
 
+def add_days(iso_date, days):
+    return (datetime.date.fromisoformat(iso_date)
+            + datetime.timedelta(days=days)).isoformat()
+
+
 def load(path):
     with open(path) as f:
         doc = yaml.safe_load(f)
     actors = {"anonymous": ANONYMOUS}
     for name, spec in (doc.get("actors") or {}).items():
         actors[name] = Actor(name, spec["role"], spec.get("active", True))
-    return actors, doc.get("features") or []
+    return actors, doc.get("features") or [], (doc.get("clock") or {})
 
 
 class PureExecutor:
     """Replays one feature against the decision function alone."""
 
-    def __init__(self, rb, actors):
+    def __init__(self, rb, actors, today=None):
         self.rb = rb
         self.actors = actors
+        self.today = today
         self.item = None  # {'author':, 'state':, fields...}
 
     def run(self, feature):
         for i, step in enumerate(feature["steps"], 1):
             res = self.step(step)
             if not res.ok:
-                return StepResult(False, f"step {i} ({step['actor']} {step['action']}): {res.message}")
+                label = step.get("actor", "clock"), step.get("action", "advance")
+                return StepResult(False, f"step {i} ({label[0]} {label[1]}): {res.message}")
         return StepResult(True, f"{len(feature['steps'])} steps")
 
     def step(self, step):
         rb = self.rb
+        if "advance_days" in step:
+            if self.today is None:
+                return StepResult(False, "advance_days without a file-level clock")
+            self.today = add_days(self.today, step["advance_days"])
+            return StepResult(True, "")
         actor = self.actors[step["actor"]]
         action = step["action"]
-        creating = rb.transition_for(action) is not None and \
-            rb.transition_for(action).source == rb_mod.NO_STATE
+        t_first = rb.transition_for(action)
+        creating = t_first is not None and t_first.source == rb_mod.NO_STATE
 
         if creating:
             state, is_author = rb_mod.NO_STATE, True
@@ -69,7 +82,8 @@ class PureExecutor:
         if not rb.lifecycle_legal(action, state):
             return StepResult(False, f"structurally illegal: {action} in state {state}")
 
-        situation = rb.situation(actor.role, actor.active, is_author, action, state, fields)
+        situation = rb.situation(actor.role, actor.active, is_author, action,
+                                 state, fields, today=self.today)
         verdict = rb.decide(situation)
 
         expect = step["expect"]
@@ -83,7 +97,7 @@ class PureExecutor:
             return StepResult(True, "")
 
         # apply the allowed step
-        t = rb.transition_for(action)
+        t = rb.transition_for(action, state) if not creating else t_first
         if creating:
             self.item = {"author": actor.name, "state": t.target, **fields}
         elif t is not None:
@@ -104,9 +118,11 @@ class PureExecutor:
 
 
 def run_all_pure(rb, features_path):
-    """Replay every feature purely; returns list of (feature_id, StepResult)."""
-    actors, features = load(features_path)
+    """Replay every feature purely; returns list of (feature_id, StepResult).
+    Each feature starts from the file-level clock (if any)."""
+    actors, features, clock = load(features_path)
     results = []
     for feature in features:
-        results.append((feature["id"], PureExecutor(rb, actors).run(feature)))
+        executor = PureExecutor(rb, actors, today=clock.get("today"))
+        results.append((feature["id"], executor.run(feature)))
     return results

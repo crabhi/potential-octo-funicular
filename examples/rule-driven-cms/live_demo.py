@@ -43,13 +43,19 @@ def request(port, method, path, user=None, body=None):
 class HttpExecutor:
     """Mirrors engine.features.PureExecutor, but over the wire."""
 
-    def __init__(self, rb, port):
+    def __init__(self, rb, port, today=None):
         self.rb = rb
         self.port = port
+        self.today = today
         self.plural = rb.entity + "s"
         self.item_id = None
 
     def step(self, step):
+        if "advance_days" in step:
+            self.today = features_mod.add_days(self.today, step["advance_days"])
+            status, doc = request(self.port, "POST", "/__clock", None,
+                                  {"today": self.today})
+            return status == 200, "" if status == 200 else f"clock: HTTP {status} {doc}"
         rb, actor, action = self.rb, step["actor"], step["action"]
         payload = step.get("set") or {}
         t = rb.transition_for(action)
@@ -106,14 +112,19 @@ def main():
 
     rb = rb_mod.load(f"{args.ruleset}/rules.yaml")
     features_path = f"{args.ruleset}/features.yaml"
-    actors, features = features_mod.load(features_path)
+    actors, features, clock = features_mod.load(features_path)
+    today = clock.get("today")
 
     with tempfile.TemporaryDirectory() as tmp:
+        cmd = [sys.executable, "-m", "engine.server", "--rules", args.ruleset,
+               "--db", f"{tmp}/live.db", "--port", str(args.port),
+               "--seed", features_path]
+        if today:
+            # features carry their own clock; each feature may advance it,
+            # so reset it over /__clock before every replay
+            cmd += ["--today", today, "--mutable-clock"]
         proc = subprocess.Popen(
-            [sys.executable, "-m", "engine.server", "--rules", args.ruleset,
-             "--db", f"{tmp}/live.db", "--port", str(args.port),
-             "--seed", features_path],
-            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
             port = wait_ready(proc)
             print(f"== live demo: {rb.entity} service from {args.ruleset} "
@@ -122,29 +133,34 @@ def main():
 
             print("-- frozen feature runs, replayed over real HTTP --")
             for feature in features:
-                ex = HttpExecutor(rb, port)
+                if today:
+                    request(port, "POST", "/__clock", None, {"today": today})
+                ex = HttpExecutor(rb, port, today=today)
                 ok, msg = True, ""
                 for i, step in enumerate(feature["steps"], 1):
                     ok, msg = ex.step(step)
                     if not ok:
-                        msg = f"step {i} ({step['actor']} {step['action']}): {msg}"
+                        msg = (f"step {i} ({step.get('actor', 'clock')} "
+                               f"{step.get('action', 'advance')}): {msg}")
                         break
                 print(f"   {'ok  ' if ok else 'FAIL'} {feature['id']}"
                       + (f" — {msg}" if msg else f" ({len(feature['steps'])} steps)"))
                 failures += 0 if ok else 1
 
             print("-- visibility probe: list endpoint vs decision function --")
+            if today:
+                request(port, "POST", "/__clock", None, {"today": today})
             plural = rb.entity + "s"
             _, all_items = request(port, "GET", f"/{plural}",
                                    next(n for n, a in actors.items() if a.role == "admin"))
             for viewer in ["anonymous"] + [n for n, a in actors.items()
-                                           if a.role in ("editor", "agent")][:1]:
+                                           if a.role in ("editor", "agent", "user")][:1]:
                 actor = actors[viewer]
                 predicted = set()
                 for item in all_items[plural]:
                     s = rb.situation(actor.role, actor.active,
                                      item["author"] == viewer, "read", item["state"],
-                                     {f: item[f] for f in rb.fields})
+                                     {f: item[f] for f in rb.fields}, today=today)
                     if rb.decide(s).effect == "allow":
                         predicted.add(item["id"])
                 _, visible = request(port, "GET", f"/{plural}", viewer)

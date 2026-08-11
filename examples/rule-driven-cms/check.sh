@@ -40,16 +40,28 @@ echo "==== 5. static gate: a second service (tickets) on the same engine (expect
 $PY -m analysis.analyze rulesets/tickets
 
 echo
-echo "==== 6. live: real HTTP server, frozen features replayed over the wire ===="
+echo "==== 6. static gate: a third service (receivables, with time) — same engine (expect PASS) ===="
+$PY -m analysis.analyze rulesets/receivables
+
+echo
+echo "==== 7. live: real HTTP server, frozen features replayed over the wire ===="
 $PY live_demo.py rulesets/cms
 
 echo
-echo "==== 7. live: the tickets service — same engine, different rule base ===="
+echo "==== 8. live: the tickets service — same engine, different rule base ===="
 $PY live_demo.py rulesets/tickets
 
 echo
-echo "==== 8. live: nightly import — mock publishers -> importer job -> editorial flow ===="
+echo "==== 9. live: the receivables service — time-dependent features over the wire ===="
+$PY live_demo.py rulesets/receivables
+
+echo
+echo "==== 10. live: nightly import — mock publishers -> importer job -> editorial flow ===="
 $PY import_demo.py
+
+echo
+echo "==== 11. live: receivables end to end — bank emails, matching, overdue, reminders ===="
+$PY receivables_demo.py
 
 echo
 echo "ALL CHECKS PASSED"

@@ -1,0 +1,117 @@
+# A third service on the same engine, from an adjacent-but-different
+# domain: tracking money you are owed. Users register expected payments
+# (a claim): the amount, the approximate payer name OR an exact payment
+# reference, and a due date. Bank transaction emails are matched by a feed
+# bot; a clock bot marks claims overdue; a notifier bot mails reminders.
+# Every bot is an ordinary actor under these rules — no back doors.
+
+entity: claim
+
+roles: [anonymous, user, bank_feed, clock, notifier, admin]
+
+states: [awaiting, overdue, paid, written_off]
+
+fields: [amount, payer_name, reference, due_date]
+
+# The engine computes projections at request time from its own clock;
+# the analyzer treats them as free booleans over all situations.
+projections:
+  - {name: is_past_due, kind: date_passed, field: due_date}
+
+lifecycle:
+  transitions:
+    - {action: create,       from: none,     to: awaiting}
+    - {action: mark_overdue, from: awaiting, to: overdue}
+    - {action: settle,       from: awaiting, to: paid}
+    - {action: settle,       from: overdue,  to: paid}
+    - {action: write_off,    from: awaiting, to: written_off}
+    - {action: write_off,    from: overdue,  to: written_off}
+
+assumptions:
+  - id: a_owners_are_users
+    description: "Claims are only ever authored by users (or admins on
+      their behalf) — the bots never own a claim."
+    holds: 'implies(actor.is_author, actor.role in ["user", "admin"])'
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+
+rules:
+  # ---- denies ----
+  - id: deny_inactive
+    description: "A deactivated account may not do anything."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: claim_needs_terms
+    description: "A claim must state what is owed and by when: amount and
+      due date are mandatory."
+    effect: deny
+    when: 'action == "create"
+           and not (resource.has_amount and resource.has_due_date)'
+
+  - id: claim_needs_identification
+    description: "A claim must be matchable: it needs the approximate
+      payer name or an exact payment reference (or both)."
+    effect: deny
+    when: 'action == "create"
+           and not (resource.has_payer_name or resource.has_reference)'
+
+  - id: no_premature_overdue
+    description: "A claim may not be marked overdue before its due date
+      has passed — not even by the clock or an admin."
+    effect: deny
+    when: 'action == "mark_overdue" and not resource.is_past_due'
+
+  - id: only_feed_settles
+    description: "Money truth comes from the bank: only the transaction
+      feed may mark a claim paid. Admins reconcile by other means."
+    effect: deny
+    when: 'action == "settle" and actor.role != "bank_feed"'
+
+  - id: ledger_immutable
+    description: "Settled and written-off claims are financial records:
+      read-only for everyone, admins included."
+    effect: deny
+    when: 'resource.state in ["paid", "written_off"] and action != "read"'
+
+  - id: no_deletion
+    description: "Financial records are never deleted; write a claim off
+      instead."
+    effect: deny
+    when: 'action == "delete"'
+
+  # ---- allows ----
+  - id: user_create
+    description: "Users may register claims for money they are owed."
+    effect: allow
+    when: 'actor.role == "user" and action == "create"'
+
+  - id: owner_dashboard
+    description: "A claim's owner may see it, correct it, and give up on
+      it (write it off) — their dashboard is exactly their own claims."
+    effect: allow
+    when: 'actor.is_author and action in ["read", "edit", "write_off"]'
+
+  - id: feed_works
+    description: "The bank transaction feed may read claims (to match
+      incoming payments) and settle the ones that were paid."
+    effect: allow
+    when: 'actor.role == "bank_feed" and action in ["read", "settle"]'
+
+  - id: clock_works
+    description: "The scheduler may read claims and mark them overdue
+      (the no_premature_overdue rule holds it to the calendar)."
+    effect: allow
+    when: 'actor.role == "clock" and action in ["read", "mark_overdue"]'
+
+  - id: notifier_reads
+    description: "The reminder mailer may read claims — nothing else."
+    effect: allow
+    when: 'actor.role == "notifier" and action == "read"'
+
+  - id: admin_oversees
+    description: "Admins may do anything the denies above do not forbid
+      (notably: they cannot settle, delete, or rewrite the ledger)."
+    effect: allow
+    when: 'actor.role == "admin"'
