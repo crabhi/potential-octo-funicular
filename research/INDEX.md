@@ -30,7 +30,11 @@ rule-based framing (the rule base is the program; note 13).
   structure — the rule-driven experiments lead, with real code on the
   slides (rules.yaml excerpts, gate files, analyzer PASS/FAIL output,
   the 403 body, the receivables demo transcript); act I compressed to a
-  single evidence slide; 16 slides.
+  single evidence slide. Two concept slides added on request: what the
+  gate is (frozen acceptance criteria, deliberately redundant with the
+  rules, both directions) and why rules rather than free code under the
+  gate (the act II vs act I comparison: proof vs sampling, no seam vs the
+  conformance tax, bounded vs unbounded edit surface). 18 slides.
 
 - 2026-08-11 (domain transfer tested): third service on the same rule
   engine — a receivables tracker (claims: amount + approximate payer name

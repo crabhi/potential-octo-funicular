@@ -406,6 +406,96 @@ bullets(40, 118, [
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 8
+header("Concepts · the gate", "The gate: frozen acceptance criteria, not the rules")
+text_block(40, H - 100,
+           "The gate is what any version of the rule base must pass to count as correct. Agents edit rules.yaml freely; "
+           "the gate they answer to is pinned somewhere they cannot reach.",
+           size=12, width=880)
+code_block(40, 398, 880, [
+    ("# the same intent, twice — on purpose:", "dim"),
+    "rules.yaml    - id: no_self_decision          effect: deny      # enforced: refuses requests, at runtime",
+    "safety.yaml   - id: S2_separation_of_duties   requires: 'implies(action == \"publish\", not actor.is_author)'",
+    ("                                                                # verified: EVERY situation, at review time", "dim"),
+])
+gate_cards = [
+    ("Deliberate redundancy", ACCENT_D,
+     "The rule is enforcement — the server refuses the request. The gate property is verification — the solver proves "
+     "no allowed situation violates it. Delete the rule (the sabotage episode does) and the property catches it, with "
+     "the concrete situation and the rule that now wrongly grants it."),
+    ("Both directions, always", WARN,
+     "Safety alone is gameable: a rule base that denies everything passes every “never happens” property vacuously. So "
+     "the gate pairs safety with possibility witnesses and frozen feature runs. strict_privacy broke NO safety property "
+     "— it failed possibility P2 and two features."),
+    ("Frozen mechanically, ratchets upward", ACCENT_D,
+     "analyze <edited-rules> --gate <pinned-dir>: the criteria live in a directory the editor cannot touch. Changing "
+     "the gate is a human ceremony, and it only grows — each counterexample becomes a permanent item. Otherwise an "
+     "optimizing agent weakens the check instead of fixing the rules (guardrail 1)."),
+    ("Verdicts, not opinions", ACCENT_D,
+     "PASS means mergeable — nothing else to review for the ruled part. FAIL means named findings — a dead rule, a "
+     "situation plus the granting rule, the blocking deny, the failing feature step — routed back to whoever edited."),
+]
+for i, (t, col, b) in enumerate(gate_cards):
+    x = [40, 490][i % 2]
+    yy = 316 - (i // 2) * 100
+    panel(x, yy - 92, 430, 92)
+    c.setFont(FB, 10.5)
+    c.setFillColor(col)
+    c.drawString(x + 14, yy - 18, t)
+    text_block(x + 14, yy - 33, b, size=9.2, width=402)
+footer(); c.showPage()
+
+# ----------------------------------------------------------------- slide 9
+header("Concepts · why rules at all", "“Couldn't the gate hold ordinary code?” It can — at a price")
+text_block(40, H - 100,
+           "The gate's strength is not free-standing — it depends on what the program is made of. Same gate sentence, two programs:",
+           size=12, width=880)
+c.setFont(FB, 11.5)
+c.setFillColor(OK)
+c.drawString(40, H - 126, "The program is rules  (act II)")
+c.setFillColor(WARN)
+c.drawString(490, H - 126, "The program is free code  (act I — P4/P5)")
+versus = [
+    ("A ∀-check is a proof.", "S2 holds in all 8,640 situations, decided in ~2 s — the rule "
+     "language is deliberately too weak to be undecidable.",
+     "∀ becomes sampling.", "“No situation exists where…” is undecidable for code (Rice). You get "
+     "property tests — P3: 735 requests, 0 errors — evidence, not proof; or per-change code proofs "
+     "(track L, extraction-fidelity gap)."),
+    ("No seam.", "The analyzer and the server evaluate the SAME parsed rules — backend agreement "
+     "checked exhaustively. The gate examines the program, not a model of it.",
+     "The seam returns.", "Checked artifact ≠ executed artifact: MBT, trace validation, conformance "
+     "harnesses — half of act I polices that boundary."),
+    ("Bounded edit surface.", "Agents edit only the rule base; the engine consults it on every "
+     "request; the language cannot express a bypass or a side door. The analyzer interprets 100% of "
+     "the editable artifact.",
+     "Unbounded artifact.", "Code can be wrong in ways no gate item mentions — a new endpoint, a "
+     "leaking cache, a bypassed check. Act I needed boundary lint and Grant<Op> compile-error "
+     "tokens just to police this."),
+    ("Findings name causes.", "Dead rules, blocking denies, granting rules — the repair loop "
+     "consumes rule interactions directly.",
+     "Findings name symptoms.", "A failing test points at behavior; the cause is yours to find."),
+]
+yy = H - 138
+for lt, lb, rt, rb_ in versus:
+    for x, t, b in ((40, lt, lb), (490, rt, rb_)):
+        panel(x, yy - 64, 430, 64)
+        c.setFont(FB, 9.8)
+        c.setFillColor(OK if x == 40 else WARN)
+        c.drawString(x + 12, yy - 16, t)
+        text_block(x + 12, yy - 29, b, size=8.4, width=406)
+    yy -= 70
+text_block(40, yy - 6,
+           "The quiet dependency: the gate is WRITTEN in the rule vocabulary — its properties quantify over situations "
+           "that exist because the rule base declares them. Define a gate for free code and you end up specifying half "
+           "a rule language anyway, just without executing it.",
+           size=9.6, width=880, color=ACCENT_D)
+text_block(40, yy - 40,
+           "The honest flip side: where behavior is computation — migrations, fuzzy matching, performance — rules can't "
+           "express it, and the repo does exactly this: free code under a gate, paying the difference in harnesses, "
+           "lints and proofs. That is the escalation ladder.",
+           size=9.6, width=880, color=MUTED)
+footer(); c.showPage()
+
+# ---------------------------------------------------------------- slide 10
 header("Developer experience · a bad edit cannot hide", "Two plausible edits, seven named findings")
 text_block(40, H - 100,
            "Sabotage episode 1: two locally-reasonable edits, held to the frozen gate (--gate points at the pinned copy).",
@@ -433,7 +523,7 @@ bullets(40, 138, [
 ], 880, size=11, gap=6)
 footer(); c.showPage()
 
-# ----------------------------------------------------------------- slide 9
+# ----------------------------------------------------------------- slide 11
 header("Episode · background processing", "A background job is just another actor")
 text_block(40, H - 100,
            "Ticket SYND-9: import published articles from publisher feeds, nightly. The importer gets no back door — it is "
@@ -473,7 +563,7 @@ bullets(40, 148, [
 ], 880, size=11, gap=6)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 10
+# ---------------------------------------------------------------- slide 12
 header("Episode · domain transfer", "Same engine, different world: money you are owed")
 text_block(40, H - 100,
            "The transferability test, from the ticket: “the user describes the amount they're owed, the approximate payer "
@@ -524,7 +614,7 @@ bullets(40, 96, [
 ], 880, size=11, gap=6)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 11
+# ---------------------------------------------------------------- slide 13
 header("Developer experience · two days in production", "The demo transcript, verbatim")
 code_block(40, 420, 880, [
     ("$ python receivables_demo.py                              (engine clock: 2026-08-11)", "cmd"),
@@ -549,7 +639,7 @@ bullets(40, 150, [
 ], 880, size=11, gap=6)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 12
+# ---------------------------------------------------------------- slide 14
 header("Scoreboard", "Three services, one engine, every claim executable")
 stats = [
     ("3 : 1", "services per engine — CMS, tickets, receivables on 1,097 lines "
@@ -584,7 +674,7 @@ bullets(490, 226, [
 ], 430, size=10, gap=6)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 13
+# ---------------------------------------------------------------- slide 15
 header("Where it stops", "Kept deliberately sharp")
 rows = [
     ("The projection boundary", "Rules see finite booleans (is_author, has_source, is_past_due). Fuzzy matching, "
@@ -609,7 +699,7 @@ for t, b in rows:
     yy -= 68
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 14
+# ---------------------------------------------------------------- slide 16
 header("Guardrails · CLAUDE.md", "What we learned the hard way — now enforced")
 gr = [
     ("The spec is frozen for agents", "Enforced mechanically — the analyzer takes --gate from a pinned directory; agents edit rules, never the gate. Same contract as act I's frozen invariants."),
@@ -633,7 +723,7 @@ for i, (t, b) in enumerate(gr):
     text_block(x + 14, yy - 36, b, size=9.6, width=yw - 28)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 15
+# ---------------------------------------------------------------- slide 17
 header("Roadmap", "Falsifiers on the table")
 c.setFont(FB, 13)
 c.setFillColor(OK)
@@ -659,7 +749,7 @@ text_block(40, 90,
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 16
+# ---------------------------------------------------------------- slide 18
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillColor(ACCENT)
