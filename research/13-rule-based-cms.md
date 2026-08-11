@@ -175,6 +175,65 @@ gate-language growth should flatten (new tickets reuse `only_into` and the
 authorship check); if every ticket keeps demanding new gate kinds, the
 framing is leaking complexity into the analyzer instead of removing it.
 
+## Episode: domain transfer (receivables, 2026-08-11)
+
+The developer's question: how transferable is the approach across
+adjacent-but-different domains? Test: replace the domain entirely — a
+tracker for money you are owed (users register amount + approximate payer
+name or exact reference + due date; bank transaction emails settle claims;
+dashboard; overdue reminder emails). `rulesets/receivables/` +
+`receivables_demo.py`, same engine.
+
+**Result: the transfer works, and its cost is measurable.** Three-way
+split of where the new domain landed:
+
+1. **Pure YAML (290 lines)** — everything the domain *means*: money truth
+   (only the bank feed settles; admins bounce off `only_feed_settles`),
+   absolute tenant isolation, an append-only ledger, well-formedness of
+   claims, and the calendar as law (`no_premature_overdue` refuses even
+   the clock bot). All ∀-checked; 13 rules, all effectual; four frozen
+   features incl. a temporal one that replays over live HTTP.
+2. **Generic engine growth (~100 net lines, zero domain words)** — the
+   honest transfer cost, and it is *conceptual, not volumetric*: the
+   engine lacked **time**. Declared projections (`date_passed` →
+   `resource.is_past_due`) + an engine clock (`--today`, `/__clock` test
+   seam), multi-source transitions (`settle` from awaiting *and* overdue
+   — late payments must land, possibility W2), and a feature-file clock
+   (`advance_days` in both executors). Each is now vocabulary every future
+   domain gets for free — the same flattening-curve prediction as the
+   import episode, one data point stronger.
+3. **Client-side, correctly refused by the vocabulary** — email parsing,
+   the matching itself (exact reference, else normalized payer name +
+   exact amount: fuzzy AND cross-item), reminder dedup, cron. Consistent
+   with the projection boundary; a production system would want the
+   matcher's decisions auditable (it prints match evidence) and eventually
+   store-level constraints (P9).
+
+Cross-episode contrast worth keeping: **bot containment needed deny rules
+in the CMS but not here.** The importer authors articles, so `own_draft`
+granted it things a deny had to take back (`importer_scope`); the
+receivables bots never own claims, so default-deny + tight allows suffice
+— scope denies here would be *provably dead*, and the dead-rule check is
+what distinguishes the two regimes. "Which containment style do I need"
+is a solver query, not a style guide.
+
+New falsifier-relevant observations:
+
+- **RB2 now has a concrete number**: exhaustive runtime↔Z3 agreement is
+  26,880 situations for receivables (~80s in CI). Exponential in
+  projections; next step when it hurts: per-condition projected
+  enumeration (a condition's truth depends only on the variables it
+  mentions) or a fully symbolic equivalence check.
+- **RB6 (new): the clock is a trust root.** `is_past_due` is only as true
+  as the engine's date. The analyzer verifies "overdue only when past
+  due" *relative to the projection*; a skewed server clock breaks it
+  silently. Prediction: the temporal twin (RB4) should also model clock
+  skew between the sweeper's view and the engine's.
+- Multi-entity domains remain the open structural limit: receivables
+  dodged it (transactions live in the bank's world; only claims are
+  ruled), but invoice↔payment↔dunning as *linked ruled entities* would
+  need N rule bases + client joins, or engine work on relations.
+
 ## Relation to the rest of the repo
 
 This is note 12's pattern 1 (verified engine + DSL surface) built

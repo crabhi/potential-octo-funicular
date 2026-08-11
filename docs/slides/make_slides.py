@@ -125,7 +125,7 @@ c.setFillColor(HexColor("#AFC3CF"))
 c.drawString(70, 244, "Invariants as the durable artifact of a regular web SaaS application —")
 c.drawString(70, 222, "agents write the code, reasoning engines hold it to the rules")
 c.setFont(F, 12)
-c.drawString(70, 160, "Research review — workflow, evidence from 7 prototypes, 13 tracks, and two worked services")
+c.drawString(70, 160, "Research review — workflow, evidence from 7 prototypes, 13 tracks, and four worked services")
 c.drawString(70, 142, "August 2026")
 c.setFont(F, 11)
 c.setFillColor(HexColor("#7E93A3"))
@@ -385,13 +385,15 @@ text_block(40, H - 108,
            "executes it. No handlers exist; the model↔code boundary disappears for the ruled part of the system.",
            size=12.5, width=880)
 panel(40, 262, 285, 128)
-c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "313 : 1,010")
+c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "313 : 1,097")
 text_block(56, 326, "lines of YAML that ARE the CMS vs lines of generic Python engine+analyzer — "
-           "reused unchanged by a second service (tickets).", size=10.2, width=255, color=INK)
+           "shared unchanged by three services (CMS, tickets, receivables).",
+           size=10.2, width=255, color=INK)
 panel(345, 262, 285, 128)
 c.setFont(FB, 26); c.setFillColor(OK); c.drawString(361, 348, "8,640 / 8,640")
 text_block(361, 326, "situations where runtime evaluation and the Z3 compilation of every rule agree — "
-           "checked exhaustively, not sampled.", size=10.2, width=255, color=INK)
+           "exhaustive per ruleset (26,880 more for receivables).",
+           size=10.2, width=255, color=INK)
 panel(650, 262, 270, 128)
 c.setFont(FB, 26); c.setFillColor(WARN); c.drawString(666, 348, "7 + 5 findings")
 text_block(666, 326, "against the FROZEN gate: two planted policy edits (7) and a naive "
@@ -399,6 +401,7 @@ text_block(666, 326, "against the FROZEN gate: two planted policy edits (7) and 
 y = bullets(40, 232, [
     "Z3 reviews the rule base itself, per change: dead rules (never alter a decision — one redundant guard was proven useless and deleted), stale assumptions, ∀-safety with the granting rule named, ∃-possibility with the blocking deny named, lifecycle liveness + gated entries, frozen feature runs with expected denials by name.",
     "Background processing under the rules, not beside them: nightly publisher imports run as an unprivileged actor (role importer) — provenance mandatory, containment ∀-checked (create/read/submit only), editors still decide; the naive syndicate-straight-to-published design is a named lifecycle finding. Engine untouched (falsifier RB1 holds).",
+    "Domain transfer measured (receivables: money owed, bank-email matching, due dates): the domain's meaning is 290 lines of YAML — money truth only from the bank feed, append-only ledger, tenant isolation, overdue only past due — while the engine grew ~100 generic lines for ONE missing concept, time (date projections + clock, multi-source transitions). Fuzzy matching stayed client-side, correctly.",
     "Same 403 vocabulary end to end: ticket sentence → rule id → solver finding → {\"denied_by\": rule_id} over real HTTP.",
     "The synthesis (note 13): rules are the programming surface, the solver is the reviewer, and proof effort concentrates on the once-proven engine — pattern 1 of note 12 (Cedar's shape), widened from authz to a whole service. Time, relations, and computation still escalate up the ladder.",
 ], 880, size=11.3, gap=7)
@@ -628,7 +631,7 @@ c.drawString(40, H - 110, "Done — 13 tracks, every falsifier tested")
 bullets(40, H - 134, [
     "Repair loop (A/F), trace validation (B), model-based testing (C), Dafny→Go kernel (D), Kani spike (E), compile-error boundary (G), gated optimization 3.94x (H).",
     "Proofs: inductive (I), parameterized w/ machine-inferred invariant (J), noninterference (K), real-code session proof (L), liveness under fairness (M). F* scouting (note 11).",
-    "Rule-driven CMS (note 13): a whole service as one rule base on a generic engine; Z3 gates every rule change; frozen gate rejects planted edits and a naive background-import extension (7+5 named findings); nightly imports run as a rule-contained actor, engine untouched.",
+    "Rule-driven services (note 13): CMS, tickets, and a receivables tracker as rule bases on one generic engine; Z3 gates every rule change (7+5 named findings on planted edits); background jobs (imports, bank feed, overdue clock, notifier) are rule-contained actors; domain transfer cost measured: ~100 generic engine lines, for time.",
 ], 880, size=11.5, gap=7)
 c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
@@ -668,7 +671,7 @@ c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
 c.drawString(70, 188, "Repo: research/INDEX.md (all notes) · research/09, 10 & 12 (scoreboards with falsifiers) · CLAUDE.md (guardrails)")
 c.drawString(70, 168, "Prototypes: p1 check.sh · p2 demo.sh · p3 run_demo.sh · p4 agent loop · p5 optimization loop · p6 mypyvy · p7 TLC")
-c.drawString(70, 148, "Worked examples: examples/cms (spec beside code) · examples/rule-driven-cms (the rules ARE the code); all runnable")
+c.drawString(70, 148, "Worked examples: examples/cms (spec beside code) · examples/rule-driven-cms (rules ARE the code: CMS, tickets, receivables)")
 footer(title_page=True)
 c.showPage()
 

@@ -26,6 +26,22 @@ rule-based framing (the rule base is the program; note 13).
 
 ## Change log
 
+- 2026-08-11 (domain transfer tested): third service on the same rule
+  engine — a receivables tracker (claims: amount + approximate payer name
+  or exact reference + due date; bank transaction emails; overdue
+  reminders). Transfer cost measured and three-way split: domain semantics
+  = 290 lines YAML (money truth only from the bank feed, absolute tenant
+  isolation, append-only ledger, calendar-guarded overdue — all
+  ∀-checked); generic engine growth = ~100 net lines for ONE missing
+  concept, time (declared date projections + engine clock + multi-source
+  transitions + feature-clock steps); fuzzy/cross-item matching and
+  reminder dedup stayed client-side per the projection boundary.
+  Cross-episode finding: bot containment needed deny rules in the CMS but
+  is provably-dead here (bots own nothing) — which regime applies is a
+  solver query. New: RB2 concrete cost (26,880-situation exhaustive check,
+  ~80s), RB6 (engine clock as trust root). Episode in note 13; slides
+  regenerated. All 11 check.sh stages green.
+
 - 2026-08-11 (import extension, RB1 tested): first post-v1 ticket for the
   rule-driven CMS — nightly import of published articles from mock
   publisher feeds. Background job = just another actor: the importer is an

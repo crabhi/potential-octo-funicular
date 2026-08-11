@@ -207,6 +207,72 @@ the nightly *schedule* is infrastructure (cron), not policy. RB1 score for
 this ticket: domain change = rules + clients only; engine untouched; gate
 *language* needed two generic extensions.
 
+## Domain-transfer experiment: a receivables tracker (same engine)
+
+How transferable is this across *adjacent but different* domains? Third
+service, deliberately unlike a CMS: **tracking money you are owed**. Users
+register claims (the amount, the approximate payer name *or* an exact
+payment reference, and a due date); the bank emails transaction
+notifications; the system keeps a dashboard and sends overdue reminders
+(`rulesets/receivables/`, `./check.sh` stages 6, 9, 11).
+
+The domain brings four things the CMS never had, and where each landed is
+the transferability result:
+
+**Landed as YAML** (290 lines: 13 rules, 10 safety, 7 possibility, 3 gated
+lifecycle entries, 4 features):
+
+- **Money truth**: only the bank feed settles — `only_feed_settles` denies
+  *admins* too, and R3 ∀-verifies it (the demo shows the admin's settle
+  attempt bouncing with a named 403).
+- **Absolute tenancy**: users only ever touch their own claims (R2);
+  the dashboard *is* the read rule — the live probe shows rita seeing
+  exactly her claims and uma hers.
+- **Append-only ledger**: paid/written-off claims are read-only for
+  everyone (R5), nothing is ever deleted (R10).
+- **The calendar as law**: `no_premature_overdue` denies `mark_overdue`
+  unless `resource.is_past_due` — even for the clock bot itself. The
+  sweeper is deliberately dumb (it attempts every awaiting claim) and the
+  *rules* refuse the premature ones by name: the rules hold the clock
+  accountable, not vice versa.
+- The registration contract from the ticket is two deny rules:
+  `claim_needs_terms` (amount + due date) and `claim_needs_identification`
+  (payer name *or* reference).
+
+**Forced generic engine growth** (~100 net lines, zero domain words —
+the honest cost of the transfer):
+
+- **Time.** The vocabulary had no clock. New: declared projections
+  (`projections: [{name: is_past_due, kind: date_passed, field:
+  due_date}]`) computed by the engine from its own date (`--today`; a
+  `--mutable-clock` test seam lets demos and feature replays advance it
+  deterministically). The analyzer treats projections as free booleans;
+  the exhaustive backend test covers them.
+- **Multi-source transitions.** `settle` must fire from `awaiting` *and*
+  `overdue` (late payments still land — possibility W2 guards it);
+  transitions are now keyed (action, source).
+- **Feature clock.** Scenario files carry `clock: {today: …}` and
+  `advance_days` steps, honored by both the pure and the HTTP executor —
+  so "time cannot be rushed" is itself a frozen, replayable feature.
+
+**Stayed client-side, correctly** (the projection boundary again): parsing
+the bank emails, the *matching* itself (exact reference, else
+case-insensitive payer name + exact amount — fuzzy and cross-item, beyond
+any per-situation vocabulary), reminder dedup, and cron.
+
+Two observations worth keeping:
+
+- **Containment needed no deny rules this time.** The CMS importer needed
+  `importer_scope` because `own_draft` granted it things (it authors
+  articles). The receivables bots never own claims, so default-deny plus
+  tight allows suffice — and the dead-rule check is what tells you which
+  regime you're in: scope denies here would be *provably dead*.
+- **RB2 signal:** the exhaustive runtime↔Z3 agreement check is now 26,880
+  situations for this ruleset (~80s of the test suite). Exhaustive
+  enumeration scales exponentially in projections; the per-condition
+  projected-space or fully symbolic equivalence check is the known next
+  step.
+
 ## Why this framing, and where it stops
 
 The 1980s built whole businesses on rule engines (OPS5, CLIPS, Drools,
@@ -263,17 +329,21 @@ Honest limits, kept sharp on purpose:
 
 | Path | What |
 |------|------|
-| `check.sh` | one-command entry: tests + 4 analyses + 3 live demos |
+| `check.sh` | one-command entry: tests + 5 analyses + 5 live demos |
 | `rulesets/cms/` | the CMS: rules + frozen gate (safety, features) |
 | `rulesets/cms-buggy/` | two planted edits; must FAIL against the frozen gate |
 | `rulesets/cms-import-naive/` | the obvious import extension; must FAIL (5 findings) |
 | `rulesets/tickets/` | a different service on the same engine (generality proof) |
-| `engine/` | generic: conditions (two backends), rule base, store, HTTP server |
+| `rulesets/receivables/` | third domain: money owed, due dates, bank feed (transfer test) |
+| `engine/` | generic: conditions (two backends), rule base, store, HTTP server, clock |
 | `analysis/analyze.py` | Z3 gate: dead rules, assumptions, ∀-safety, ∃-possibility, lifecycle, features |
 | `live_demo.py` | replay the frozen features over real HTTP + visibility probe |
 | `mock_publishers.py` | the external side: three canned publisher feeds |
 | `importer.py` | the nightly job — an unprivileged HTTP client under the rules |
 | `import_demo.py` | two "nights" end-to-end: import, dedup, containment, editorial finish |
+| `mock_bank.py` | transaction notification emails, in daily batches |
+| `receivables_bots.py` | feed matcher, overdue sweeper, reminder notifier |
+| `receivables_demo.py` | the whole receivables story across two dates |
 | `tests/` | unit tests incl. exhaustive runtime↔Z3 agreement |
 
 Research discussion: `research/13-rule-based-cms.md`.
