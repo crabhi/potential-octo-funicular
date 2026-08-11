@@ -60,7 +60,7 @@ def footer(title_page=False):
         return
     c.setFont(F, 8.5)
     c.setFillColor(MUTED)
-    c.drawString(40, 20, "Formal proofs as guardrails for LLM agents · 2026-08-06")
+    c.drawString(40, 20, "Formal proofs as guardrails for LLM agents · 2026-08-11")
     c.drawRightString(W - 40, 20, str(page[0]))
 
 
@@ -125,7 +125,7 @@ c.setFillColor(HexColor("#AFC3CF"))
 c.drawString(70, 244, "Invariants as the durable artifact of a regular web SaaS application —")
 c.drawString(70, 222, "agents write the code, reasoning engines hold it to the rules")
 c.setFont(F, 12)
-c.drawString(70, 160, "Research review — workflow, evidence from 7 prototypes and 13 tracks, proofs at every level")
+c.drawString(70, 160, "Research review — workflow, evidence from 7 prototypes, 13 tracks, and two worked services")
 c.drawString(70, 142, "August 2026")
 c.setFont(F, 11)
 c.setFillColor(HexColor("#7E93A3"))
@@ -378,6 +378,32 @@ y = bullets(40, 200, [
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 10
+header("Reframing · rule-based systems", "Ground-up service: the rule base IS the program")
+text_block(40, H - 108,
+           "The other framing, built (examples/rule-driven-cms, note 13): instead of writing code and holding it to a "
+           "spec from outside, the developer writes ONE artifact — a rule base — and a generic, domain-free engine "
+           "executes it. No handlers exist; the model↔code boundary disappears for the ruled part of the system.",
+           size=12.5, width=880)
+panel(40, 262, 285, 128)
+c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "241 : 975")
+text_block(56, 326, "lines of YAML that ARE the CMS vs lines of generic Python engine+analyzer — "
+           "reused unchanged by a second service (tickets).", size=10.2, width=255, color=INK)
+panel(345, 262, 285, 128)
+c.setFont(FB, 26); c.setFillColor(OK); c.drawString(361, 348, "3,600 / 3,600")
+text_block(361, 326, "situations where runtime evaluation and the Z3 compilation of every rule agree — "
+           "checked exhaustively, not sampled.", size=10.2, width=255, color=INK)
+panel(650, 262, 270, 128)
+c.setFont(FB, 26); c.setFillColor(WARN); c.drawString(666, 348, "6 findings")
+text_block(666, 326, "against the FROZEN gate for two plausible edits: a privacy deny that kills review, "
+           "a dropped separation-of-duties deny.", size=10.2, width=240, color=INK)
+y = bullets(40, 232, [
+    "Z3 reviews the rule base itself, per change: dead rules (never alter a decision — one redundant guard was proven useless and deleted), ∀-safety with the granting rule named, ∃-possibility with the blocking deny named, lifecycle liveness, frozen feature runs with expected denials by name.",
+    "Same 403 vocabulary end to end: ticket sentence → rule id → solver finding → {\"denied_by\": rule_id} over real HTTP.",
+    "The synthesis (note 13): rules are the programming surface, the solver is the reviewer, and proof effort concentrates on the once-proven engine — pattern 1 of note 12 (Cedar's shape), widened from authz to a whole service. Time, relations, and computation still escalate up the ladder.",
+], 880, size=11.3, gap=7)
+footer(); c.showPage()
+
+# ---------------------------------------------------------------- slide 11
 header("The agent loop closed (P4)", "Same bug, same model, same prompt — the gate decides")
 text_block(40, H - 108,
            "P4 seeds the historical IS-NULL bug into the migration protocol and lets a headless LLM repair it against the "
@@ -407,7 +433,7 @@ text_block(40, 120,
            size=12, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 11
+# ---------------------------------------------------------------- slide 12
 header("Autonomous optimization (P5)", "The agent makes it 3.9x faster — and cannot make it wrong")
 text_block(40, H - 108,
            "The end-goal demo: an agent maximizes benchmark throughput on the CMS app (seeded with a global Mutex and "
@@ -431,7 +457,7 @@ y = bullets(40, 216, [
 ], 880, size=12, gap=8)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 12
+# ---------------------------------------------------------------- slide 13
 header("Escalation: from tests to theorems", "“Never happens” now means proven — at five levels")
 text_block(40, H - 104,
            "Bounded checking says “safe up to k steps at this size.” Phase 3 removed the qualifiers (all PROVEN, tracks I–M):",
@@ -466,7 +492,7 @@ for t, tag, b in rungs:
     yy -= 68
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 13
+# ---------------------------------------------------------------- slide 14
 header("The honest question", "What binds the model to the code? A ladder, now fully exercised")
 text_block(40, H - 104,
            "Model↔code drift is the classic failure mode of industrial formal methods. Every rung below is implemented "
@@ -502,7 +528,7 @@ for t, tag, col, b in rungs:
     yy -= 66
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 14
+# ---------------------------------------------------------------- slide 15
 header("Language scouting", "Is F* the endgame rule language? Verdict: no — but steal two ideas")
 text_block(40, H - 104,
            "F* is the purist endpoint of “rules as abstraction”: the type IS the rule (dependent/refinement types, "
@@ -529,14 +555,14 @@ text_block(40, 196,
            size=12, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 15
+# ---------------------------------------------------------------- slide 16
 header("Scaling rung 5", "Five ways proofs meet code — ranked for an LLM-built SaaS (note 12)")
 patterns = [
     ("1 · Verified engine + small DSL", "zero proofs/feature", OK,
-     "Prove the engine once, agents write rules in an analyzable DSL. AWS shipped this shape three times: Cedar "
-     "(Lean-proven authorizer + symbolic policy analysis proven sound AND complete — every verdict carries a concrete "
-     "counterexample request), Bedrock Automated Reasoning checks, AgentCore's NL→Cedar loop with symbolic feedback. "
-     "Note 11's F3 direction, industry-confirmed."),
+     "Prove the engine once, agents write rules in an analyzable DSL. AWS shipped this shape three times (Cedar with "
+     "Lean-proven authorizer + sound-and-complete symbolic analysis, Bedrock AR checks, AgentCore's NL→Cedar loop) — "
+     "and we now have it end-to-end: examples/rule-driven-cms runs a whole CMS from one rule base on a generic engine, "
+     "Z3 gating every rule change (note 13)."),
     ("2 · Proven kernel, generated & embedded", "cloud-scale proof", OK,
      "Track D at scale: AWS rewrote IAM authorization in Dafny→Java — ~10^9 authorizations/second, spec validated by "
      "shadow-testing 10^15 production samples. Dafny is the LLM sweet spot: 86–93% on proof benchmarks; its top toolchains "
@@ -569,7 +595,7 @@ text_block(40, yy - 4,
            size=10.5, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 16
+# ---------------------------------------------------------------- slide 17
 header("Guardrails · CLAUDE.md", "What we learned the hard way — now enforced")
 gr = [
     ("The spec is frozen for agents", "Enforced mechanically — diff the frozen region, revert, fail the round. Never by convention or prompt."),
@@ -593,7 +619,7 @@ for i, (t, b) in enumerate(gr):
     text_block(x + 14, yy - 36, b, size=9.6, width=yw - 28)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 17
+# ---------------------------------------------------------------- slide 18
 header("Roadmap", "What's proven, what's parked, what's next")
 c.setFont(FB, 13)
 c.setFillColor(OK)
@@ -601,12 +627,13 @@ c.drawString(40, H - 110, "Done — 13 tracks, every falsifier tested")
 bullets(40, H - 134, [
     "Repair loop (A/F), trace validation (B), model-based testing (C), Dafny→Go kernel (D), Kani spike (E), compile-error boundary (G), gated optimization 3.94x (H).",
     "Proofs: inductive (I), parameterized w/ machine-inferred invariant (J), noninterference (K), real-code session proof (L), liveness under fairness (M). F* scouting (note 11).",
+    "Rule-driven CMS (note 13): a whole service as one rule base on a generic engine; Z3 gates every rule change; frozen gate rejects two planted edits with 6 named findings.",
 ], 880, size=11.5, gap=7)
 c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
 c.drawString(40, H - 250, "Next")
 bullets(40, H - 274, [
-    "P8 — Cedar shootout (note 12, R1): the same 10 CMS rules as Cedar policies; does the Lean-proven symbolic analysis reproduce our P2 oracle's verdicts, counterexamples included?",
+    "P8 — Cedar shootout (note 12, R1): the same CMS rules as Cedar policies vs our native rule engine — plus note 13's falsifiers: LLM ticket→rule fidelity (RB3), the temporal twin that should catch the demoted-author race the rules can't see (RB4).",
     "P9 — invariant→Postgres compiler (R2): constraints/triggers where sound, isolation side-conditions explicit, residual obligations routed to the model checker. No such tool exists anywhere.",
     "Track N — refinement mappings (serializable refines SI; app-shaped refines abstract) · Track O — verified runtime enforcement · F3 DSL loop, now industry-backed · Flux spike (R5).",
     "TCB accounting as a first-class artifact — every “proven” names what it trusts (note 12 has the per-pattern table) and directs the next escalation.",
@@ -620,7 +647,7 @@ text_block(40, 106,
            size=11, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 18
+# ---------------------------------------------------------------- slide 19
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillColor(ACCENT)
@@ -640,7 +667,7 @@ c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
 c.drawString(70, 188, "Repo: research/INDEX.md (all notes) · research/09, 10 & 12 (scoreboards with falsifiers) · CLAUDE.md (guardrails)")
 c.drawString(70, 168, "Prototypes: p1 check.sh · p2 demo.sh · p3 run_demo.sh · p4 agent loop · p5 optimization loop · p6 mypyvy · p7 TLC")
-c.drawString(70, 148, "Worked example: examples/cms — model, app, oracle, MBT, trace validation, noninterference, Dafny kernel; all runnable")
+c.drawString(70, 148, "Worked examples: examples/cms (spec beside code) · examples/rule-driven-cms (the rules ARE the code); all runnable")
 footer(title_page=True)
 c.showPage()
 
