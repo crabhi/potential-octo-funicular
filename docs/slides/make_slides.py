@@ -385,19 +385,20 @@ text_block(40, H - 108,
            "executes it. No handlers exist; the model↔code boundary disappears for the ruled part of the system.",
            size=12.5, width=880)
 panel(40, 262, 285, 128)
-c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "241 : 975")
+c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "313 : 1,010")
 text_block(56, 326, "lines of YAML that ARE the CMS vs lines of generic Python engine+analyzer — "
            "reused unchanged by a second service (tickets).", size=10.2, width=255, color=INK)
 panel(345, 262, 285, 128)
-c.setFont(FB, 26); c.setFillColor(OK); c.drawString(361, 348, "3,600 / 3,600")
+c.setFont(FB, 26); c.setFillColor(OK); c.drawString(361, 348, "8,640 / 8,640")
 text_block(361, 326, "situations where runtime evaluation and the Z3 compilation of every rule agree — "
            "checked exhaustively, not sampled.", size=10.2, width=255, color=INK)
 panel(650, 262, 270, 128)
-c.setFont(FB, 26); c.setFillColor(WARN); c.drawString(666, 348, "6 findings")
-text_block(666, 326, "against the FROZEN gate for two plausible edits: a privacy deny that kills review, "
-           "a dropped separation-of-duties deny.", size=10.2, width=240, color=INK)
+c.setFont(FB, 26); c.setFillColor(WARN); c.drawString(666, 348, "7 + 5 findings")
+text_block(666, 326, "against the FROZEN gate: two planted policy edits (7) and a naive "
+           "background-import extension (5) — all named.", size=10.2, width=240, color=INK)
 y = bullets(40, 232, [
-    "Z3 reviews the rule base itself, per change: dead rules (never alter a decision — one redundant guard was proven useless and deleted), ∀-safety with the granting rule named, ∃-possibility with the blocking deny named, lifecycle liveness, frozen feature runs with expected denials by name.",
+    "Z3 reviews the rule base itself, per change: dead rules (never alter a decision — one redundant guard was proven useless and deleted), stale assumptions, ∀-safety with the granting rule named, ∃-possibility with the blocking deny named, lifecycle liveness + gated entries, frozen feature runs with expected denials by name.",
+    "Background processing under the rules, not beside them: nightly publisher imports run as an unprivileged actor (role importer) — provenance mandatory, containment ∀-checked (create/read/submit only), editors still decide; the naive syndicate-straight-to-published design is a named lifecycle finding. Engine untouched (falsifier RB1 holds).",
     "Same 403 vocabulary end to end: ticket sentence → rule id → solver finding → {\"denied_by\": rule_id} over real HTTP.",
     "The synthesis (note 13): rules are the programming surface, the solver is the reviewer, and proof effort concentrates on the once-proven engine — pattern 1 of note 12 (Cedar's shape), widened from authz to a whole service. Time, relations, and computation still escalate up the ladder.",
 ], 880, size=11.3, gap=7)
@@ -627,7 +628,7 @@ c.drawString(40, H - 110, "Done — 13 tracks, every falsifier tested")
 bullets(40, H - 134, [
     "Repair loop (A/F), trace validation (B), model-based testing (C), Dafny→Go kernel (D), Kani spike (E), compile-error boundary (G), gated optimization 3.94x (H).",
     "Proofs: inductive (I), parameterized w/ machine-inferred invariant (J), noninterference (K), real-code session proof (L), liveness under fairness (M). F* scouting (note 11).",
-    "Rule-driven CMS (note 13): a whole service as one rule base on a generic engine; Z3 gates every rule change; frozen gate rejects two planted edits with 6 named findings.",
+    "Rule-driven CMS (note 13): a whole service as one rule base on a generic engine; Z3 gates every rule change; frozen gate rejects planted edits and a naive background-import extension (7+5 named findings); nightly imports run as a rule-contained actor, engine untouched.",
 ], 880, size=11.5, gap=7)
 c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
