@@ -4,6 +4,9 @@
 Audience: engineers without prior formal-verification background.
 Regenerated ground-up from the current repository state (see CLAUDE.md
 workflow rule: the deck always describes the repo, never accretes).
+This edition leads with the rule-driven experiments (examples/
+rule-driven-cms, note 13) and shows the developer experience with real
+code from the repo; Act I (proofs beside the code) is one evidence slide.
 Usage: python3 make_slides.py  ->  formal-guardrails-slides.pdf
 """
 from reportlab.lib.colors import HexColor
@@ -21,11 +24,20 @@ PANEL = HexColor("#F1F4F7")
 PANEL_LINE = HexColor("#D8DFE7")
 WHITE = HexColor("#FFFFFF")
 
+CODE_BG = HexColor("#F4F6F8")     # light code panel (YAML)
+CODE_INK = HexColor("#243247")
+CODE_DARK_BG = HexColor("#16222F")  # terminal panel
+CODE_TXT = HexColor("#D8E2EA")
+CODE_OK = HexColor("#8CCB96")
+CODE_FAIL = HexColor("#F09A7E")
+CODE_DIM = HexColor("#7E93A5")
+
 OUT = "formal-guardrails-slides.pdf"
 c = canvas.Canvas(OUT, pagesize=(W, H))
 page = [0]
 
 F, FB, FI = "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
+M, MB = "Courier", "Courier-Bold"
 
 
 def wrap(text, font, size, width):
@@ -60,7 +72,7 @@ def footer(title_page=False):
         return
     c.setFont(F, 8.5)
     c.setFillColor(MUTED)
-    c.drawString(40, 20, "Formal proofs as guardrails for LLM agents · 2026-08-11")
+    c.drawString(40, 20, "Formal guardrails for LLM agents · rules as the program · 2026-08-11")
     c.drawRightString(W - 40, 20, str(page[0]))
 
 
@@ -111,6 +123,38 @@ def chip(x, y, txt, color=ACCENT, size=9.5):
     return x + w_
 
 
+def code_block(x, top, w_, lines, size=8.6, dark=False):
+    """Monospace code panel. `lines` are strings or (text, style) tuples;
+    styles: cmd, ok, fail, dim, add, del. Returns the bottom y."""
+    lh = size * 1.42
+    pad = 12
+    h_ = 2 * pad + lh * len(lines)
+    panel(x, top - h_, w_, h_, fill=(CODE_DARK_BG if dark else CODE_BG))
+    light = {"": CODE_INK, "dim": MUTED, "ok": OK, "fail": WARN,
+             "add": OK, "del": WARN, "cmd": ACCENT_D}
+    darkc = {"": CODE_TXT, "dim": CODE_DIM, "ok": CODE_OK, "fail": CODE_FAIL,
+             "add": CODE_OK, "del": CODE_FAIL, "cmd": WHITE}
+    colors = darkc if dark else light
+    yy = top - pad - size
+    for ln in lines:
+        text, style = ln if isinstance(ln, tuple) else (ln, "")
+        c.setFont(MB if style in ("cmd", "fail") else M, size)
+        c.setFillColor(colors[style])
+        c.drawString(x + pad, yy, text)
+        yy -= lh
+    return top - h_
+
+
+def box(x, y, w_, h_, title, body, title_color=ACCENT_D, body_size=8.6,
+        fill=PANEL):
+    panel(x, y, w_, h_, fill=fill)
+    c.setFont(FB, 9.5)
+    c.setFillColor(title_color)
+    c.drawString(x + 10, y + h_ - 16, title)
+    text_block(x + 10, y + h_ - 29, body, size=body_size, width=w_ - 20,
+               color=INK)
+
+
 # ----------------------------------------------------------------- slide 1
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
@@ -118,15 +162,17 @@ c.setFillColor(ACCENT)
 c.rect(0, 118, W, 5, fill=1, stroke=0)
 c.setFillColor(WHITE)
 c.setFont(FB, 34)
-c.drawString(70, 330, "Formal proofs as guardrails")
-c.drawString(70, 288, "for LLM coding agents")
-c.setFont(F, 15.5)
+c.drawString(70, 340, "The rule base is the program")
+c.setFont(FB, 21)
+c.setFillColor(HexColor("#7FB5B2"))
+c.drawString(70, 305, "formal guardrails for LLM agents, act II")
+c.setFont(F, 15)
 c.setFillColor(HexColor("#AFC3CF"))
-c.drawString(70, 244, "Invariants as the durable artifact of a regular web SaaS application —")
-c.drawString(70, 222, "agents write the code, reasoning engines hold it to the rules")
+c.drawString(70, 258, "Three services — a CMS, a ticket desk, a receivables tracker — written as rules,")
+c.drawString(70, 236, "served by one domain-free engine, with a solver reviewing every change.")
 c.setFont(F, 12)
-c.drawString(70, 160, "Research review — workflow, evidence from 7 prototypes, 13 tracks, and four worked services")
-c.drawString(70, 142, "August 2026")
+c.drawString(70, 168, "Research review with code: the developer experience, two sabotage episodes, one domain transfer —")
+c.drawString(70, 150, "and act I (proofs beside the code) in a single slide. August 2026.")
 c.setFont(F, 11)
 c.setFillColor(HexColor("#7E93A3"))
 c.drawString(70, 88, "No formal-methods background assumed — the four concepts you need are on slide 3.")
@@ -137,24 +183,24 @@ c.showPage()
 header("Why this project", "Agents now out-write our ability to check")
 y = bullets(40, H - 120, [
     "LLM agents produce code faster than humans can meaningfully review it. Human attention is the bottleneck — and it samples, it does not cover.",
-    "Tests also sample: they check the runs you thought of. Concurrency bugs live precisely in the interleavings you did not think of.",
-    "If we want agents to optimize systems autonomously (performance, cost), we need a way to say what must never break — and have a machine enforce it.",
+    "Tests also sample: they check the runs you thought of. The bugs that matter live in the interactions you did not think of.",
+    "If we want agents (and background jobs, and time) to act autonomously, we need a way to say what must never break — and have a machine enforce it.",
 ], 560, size=14, gap=12)
 panel(640, H - 300, 280, 190)
 c.setFont(FB, 12.5)
 c.setFillColor(ACCENT_D)
 c.drawString(654, H - 134, "The proposal")
 text_block(654, H - 156,
-           "The developer writes down intent as invariants. Agents write and "
-           "rewrite the code. Reasoning engines sit between them and arbitrate: "
-           "every change must provably keep the invariants.", size=11.5, width=252)
-text_block(654, H - 252,
+           "The developer writes down intent as rules and invariants. Agents "
+           "write the rest. Reasoning engines sit between them and arbitrate: "
+           "every change must provably keep the rules.", size=11.5, width=252)
+text_block(654, H - 250,
            "Code becomes cheap to regenerate. The spec becomes the durable asset.",
            font=FI, size=11.5, width=252, color=ACCENT_D)
 y = text_block(40, 180,
-               "Setting: a regular web SaaS application — CRUD/API handlers, authorization, tenancy, schema migrations "
-               "running under live traffic. Not kernels, crypto, or avionics: every tool below is judged against ordinary "
-               "product teams, CI budgets, and mainstream languages at the edges.",
+               "Setting: a regular web SaaS application — CRUD/API handlers, authorization, tenancy, workflows, background "
+               "jobs. Not kernels, crypto, or avionics: every technique here is judged against ordinary product teams, CI "
+               "budgets, and mainstream languages at the edges.",
                size=12.5, width=880, color=MUTED)
 footer(); c.showPage()
 
@@ -162,19 +208,19 @@ footer(); c.showPage()
 header("Background in four words", "All the formal methods you need today")
 data = [
     ("Invariant", "A sentence about the system that must be true at every "
-     "moment. Example: “no request ever reads a database column that has "
-     "been dropped.” You already write these — in comments, runbooks and "
-     "post-mortems. Here they become machine-checkable."),
+     "moment. Example: “a user never sees another user's data.” You already "
+     "write these — in comments, runbooks and post-mortems. Here they "
+     "become machine-checkable."),
     ("Model", "A small, faithful board-game version of your system: its "
-     "states and legal moves (a request commits, a migration step runs). "
-     "Small enough to explore, faithful enough that its bugs are your bugs."),
-    ("Checker", "A tireless adversary. It plays every possible ordering of "
-     "moves against the model — millions of interleavings you would never "
-     "think to test — hunting for one that breaks an invariant."),
-    ("Counterexample", "The checker's proof of failure: the exact move list "
-     "that breaks the invariant. Not “something is wrong” but "
-     "“this sequence of 9 steps ends with a stale read.” Perfect "
-     "food for an LLM to repair against."),
+     "states and legal moves. In act II the “model” is not beside the "
+     "system — the rule base IS both the model and the running program."),
+    ("Checker", "A tireless adversary (here: the Z3 solver). It considers "
+     "every situation the rules allow — thousands you would never test — "
+     "hunting for one that breaks an invariant."),
+    ("Counterexample", "The checker's proof of failure: the exact situation "
+     "that breaks the rule, with the rule that allowed it named. Not "
+     "“something is wrong” but “an editor who authored this article can "
+     "publish it, via editor_decide.”"),
 ]
 xs, ys_ = [40, 500], [H - 108, H - 300]
 for i, (t, b) in enumerate(data):
@@ -187,429 +233,393 @@ for i, (t, b) in enumerate(data):
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 4
-header("The workflow", "Three roles, one contract — every stage now built and exercised")
-lanes = [("DEVELOPER", "owns intent", 40), ("LLM AGENTS", "own implementation", 355),
-         ("REASONING ENGINES", "arbitrate", 670)]
-for t, s, x in lanes:
-    c.setFont(FB, 11)
-    c.setFillColor(ACCENT)
-    c.drawString(x, H - 108, t)
-    c.setFont(FI, 10)
-    c.setFillColor(MUTED)
-    c.drawString(x, H - 122, s)
-steps = [
-    (40, H - 210, 250, 70, "1 · Invariants in English",
-     "“During a migration, both app versions must read correct data.”"),
-    (355, H - 210, 250, 70, "2 · Translated to formal rules",
-     "LLM drafts; developer reviews each rule against the original sentence."),
-    (670, H - 210, 250, 70, "3 · Sanity-checked",
-     "Do the rules contradict? Are any vacuous? What surprising states do they allow? (P2)"),
-    (670, H - 305, 250, 70, "4 · Design checked & PROVEN",
-     "Bounded checking first, then inductive / parameterized / liveness proofs. (P1, P6, P7)"),
-    (355, H - 305, 250, 70, "5 · Bound to the real system",
-     "Spec-derived tests, model-based testing, trace validation, code proofs. (P3, tracks B–D, L)"),
-    (40, H - 305, 250, 70, "6 · Agents repair & optimize",
-     "Any edit that keeps every gate green ships. Counterexamples come back as repair tasks. (P4, P5)"),
+header("Act I in one slide (2026-07 → 08-06)", "Proofs beside the code: it works — and it has a tax")
+acts = [
+    ("2 protocols falsified, then proven",
+     "P1: the model checker beat a careful engineer twice on an online DB "
+     "migration (drain guard, IS-NULL backfill). Version 3 survived — and was "
+     "later proven inductively, for any system size, and live (tracks I, J, M)."),
+    ("59 anomalies per run",
+     "P3: skip the guard against real Postgres under concurrent load and the "
+     "model's predicted anomaly appears 59×/run; 0 with the proven choreography. "
+     "The invariant is load-bearing, not decorative."),
+    ("1 round to the full fix",
+     "P4: same bug, same model, same generic prompt — a stronger frozen gate "
+     "turned a partial fix into the full fix. Invest in gate strength, not "
+     "prompt steering."),
+    ("3.94× faster, never wrong",
+     "P5: an agent optimized the CMS freely inside the frozen gate; two "
+     "correctness-breaking “optimizations” were absorbed mechanically. "
+     "Counterexamples, not humans, did the reviewing."),
+    ("Proofs at five levels",
+     "Inductive invariants, parameterized (machine-inferred by UPDR), liveness "
+     "under fairness, noninterference via self-composition, and a Dafny proof "
+     "of real session code (tracks I–M)."),
+    ("The residual tax",
+     "Every result above polices the model↔code boundary: MBT, trace "
+     "validation, extraction fidelity. Act II removes that boundary for the "
+     "ruled part of the system."),
 ]
-for x, yy, w_, h_, t, b in steps:
-    panel(x, yy - h_, w_, h_)
+for i, (t, b) in enumerate(acts):
+    x = [40, 490][i % 2]
+    yy = (H - 100) - (i // 2) * 102
+    panel(x, yy - 94, 430, 94, fill=PANEL if i < 5 else HexColor("#F6E8E1"))
     c.setFont(FB, 11.5)
-    c.setFillColor(INK)
-    c.drawString(x + 12, yy - 20, t)
-    text_block(x + 12, yy - 36, b, size=9.8, width=w_ - 24, color=MUTED)
-arrow(292, H - 245, 353, H - 245)
-arrow(607, H - 245, 668, H - 245)
-arrow(795, H - 282, 795, H - 303)
-arrow(668, H - 340, 607, H - 340)
-arrow(353, H - 340, 292, H - 340)
-y = text_block(40, 128,
-               "The contract: the spec is frozen for the agent — enforced mechanically (the harness diffs the frozen region, "
-               "reverts, and fails the round), never by convention or prompt. Objectives (speed, cost) are optimized only "
-               "inside the region the spec allows. The agent may make the system faster any way it likes; it may not make it wrong.",
-               size=12, width=880, color=ACCENT_D)
+    c.setFillColor(ACCENT_D if i < 5 else WARN)
+    c.drawString(x + 14, yy - 19, t)
+    text_block(x + 14, yy - 35, b, size=9.6, width=402)
+y = text_block(40, 118,
+               "Language scouting closed the loop (notes 11–12): F* is not the SaaS rule language; of five ways proofs can "
+               "meet code, “verified engine + small analyzable DSL” — Cedar's shape — ranked first. Act II builds exactly that.",
+               size=11.5, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 5
-header("Case study", "Changing the database schema while serving traffic")
-text_block(40, H - 110,
-           "Why this problem: it is ubiquitous at scale, genuinely concurrent, and formally treated exactly once in the "
-           "literature (Google F1, 2013). The popular open-source migration tools ship no correctness argument at all.",
-           size=12.5, width=880)
-stages = [("EXPAND", "add new column,\ninvisible to reads"),
-          ("DUAL-WRITE", "every write fills\nold + new column"),
-          ("BACKFILL", "copy old rows\nin batches"),
-          ("SWITCH READS", "reads now served\nfrom new column"),
-          ("CONTRACT", "drop the old\ncolumn")]
-x = 40
-for i, (t, b) in enumerate(stages):
-    panel(x, H - 270, 160, 92, fill=HexColor("#E8F0EF") if i != 4 else HexColor("#F6E8E1"))
-    c.setFont(FB, 11.5)
-    c.setFillColor(ACCENT_D if i != 4 else WARN)
-    c.drawString(x + 12, H - 202, t)
-    yy = H - 222
-    for ln in b.split("\n"):
-        c.setFont(F, 10)
-        c.setFillColor(INK)
-        c.drawString(x + 12, yy, ln)
-        yy -= 13
-    if i < 4:
-        arrow(x + 160, H - 224, x + 176, H - 224)
-    x += 176
-y = bullets(40, H - 310, [
-    "Meanwhile: two versions of the application run side by side (rolling deploy). Version 1 has never heard of the new column.",
-    "Meanwhile: user requests read and write the same rows the migration is copying — under snapshot isolation, so everyone sees a consistent-looking snapshot and conflicts surface only at commit.",
-    "One protocol mistake in the choreography and some user reads return stale data — silently.",
-], 880, size=12.5, gap=8)
+header("Act II · the reframing", "“Is formal methods even the right framing?”")
+y = text_block(40, H - 104,
+               "The developer's question, verbatim: all the examples model one facet of a system. If a human builds a "
+               "full web service from the ground up — maybe formal methods is not the right framing. How about "
+               "rule-based systems?", size=12, width=430, color=INK)
+y = bullets(40, y - 14, [
+    "Rule engines (OPS5, CLIPS, Drools, DMN) ran real businesses — and died of interaction opacity: at 10³ rules nobody could ask “does any rule ever let X happen?”. That question is exactly an SMT workload.",
+    "Formal methods stall on the opposite problem: the spec and the code are two artifacts, and they drift. Executable rules remove the seam — there is only one artifact for the domain.",
+], 430, size=10.8, gap=8)
+# --- diagram, right column ---
+panel(560, 340, 280, 52, fill=HexColor("#E9F1EC"))
+c.setFont(FB, 11)
+c.setFillColor(ACCENT_D)
+c.drawString(576, 368, "rules.yaml — THE PROGRAM")
+c.setFont(F, 9)
+c.setFillColor(INK)
+c.drawString(576, 353, "roles · lifecycle · allow/deny rules · assumptions")
+arrow(640, 338, 590, 310)
+arrow(760, 338, 810, 310)
+box(480, 220, 210, 88, "engine/  (generic, serve)",
+    "every request: lifecycle legality -> rule decision -> act. "
+    "Refusals are 403s that NAME the rule.")
+box(710, 220, 210, 88, "analysis/  (Z3, review)",
+    "every change: dead rules, safety (EVERY situation), possibility "
+    "(SOME), lifecycle, feature runs.")
+c.setFont(FI, 8.5)
+c.setFillColor(MUTED)
+c.drawCentredString(660, 206, "one condition grammar, two backends — agreement checked exhaustively")
+panel(560, 130, 280, 50, fill=HexColor("#F6E8E1"))
+c.setFont(FB, 10.5)
+c.setFillColor(WARN)
+c.drawString(576, 158, "gate: safety + features — FROZEN")
+c.setFont(F, 9)
+c.setFillColor(INK)
+c.drawString(576, 143, "agents edit rules; the gate they answer to is pinned")
+arrow(880, 182, 880, 218)
+y = text_block(40, 96,
+               "The synthesis (note 13): rules are the programming surface · the solver is the reviewer · proof effort "
+               "concentrates on the once-proven engine (Cedar's shape, note 12 pattern 1). Time, relations and computation "
+               "still escalate up the assurance ladder.", size=11.5, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 6
-header("Evidence · design level (P1)", "The checker beat us — twice")
-text_block(40, H - 108,
-           "We wrote the migration protocol as a small model (Quint) with three one-line invariants, believing each version "
-           "correct. Random simulation found counterexamples in under a second; symbolic checking confirmed them.",
-           size=12.5, width=880)
-panel(40, 224, 430, 166, fill=HexColor("#F6E8E1"))
-c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(54, 366, "Bug #1 — the drain guard was in the wrong place")
-text_block(54, 344,
-           "Rule as written: “backfill may not start until every app instance runs v2.” "
-           "Counterexample: dual-writes alone fill the new column, so the read switch fires "
-           "with no backfill at all — while a v1 instance still lives. It writes the old column "
-           "afterwards; a v2 user reads stale data.", size=10.8, width=402)
-text_block(54, 252, "Fix: the drain must gate the read switch too, not just the backfill.",
-           font=FB, size=10.8, width=402, color=INK)
-panel(490, 224, 430, 166, fill=HexColor("#F6E8E1"))
-c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(504, 366, "Bug #2 — the textbook backfill query is wrong")
-text_block(504, 344,
-           "Every guide says: backfill WHERE new_column IS NULL. Counterexample: during the "
-           "rolling window a v2 instance dual-writes a row (new column now non-NULL), then a "
-           "surviving v1 instance overwrites the old column only. The row is non-NULL but stale — "
-           "and IS NULL never revisits it. The staleness survives to the switch.", size=10.8, width=402)
-text_block(504, 244, "Fix: backfill WHERE new IS DISTINCT FROM old; switch when all rows agree.",
-           font=FB, size=10.8, width=402, color=INK)
-text_block(40, 196,
-           "Both are real production failure modes of app-level dual-write migrations — and neither is in the literature or the "
-           "OSS tools' docs. After the fixes: 30,000 random traces clean, Apalache verifies to 12 steps — and the protocol "
-           "is now PROVEN at every depth and every system size (slide 12).",
-           size=12, width=880, color=ACCENT_D)
-text_block(40, 148,
-           "This is the workflow working as designed: the human states three one-line invariants; the machine finds the "
-           "non-obvious consequences of the protocol.", size=12, width=880, font=FI, color=MUTED)
+header("Developer experience · writing the app", "A feature is a rule, not a handler")
+text_block(40, H - 100,
+           "The whole CMS is one reviewable file: lifecycle plus fourteen allow/deny rules, each carrying the stakeholder "
+           "sentence it translates. There are no handlers to write — endpoints exist because the lifecycle says so.",
+           size=12, width=880)
+code_block(40, 398, 430, [
+    ("# rulesets/cms/rules.yaml — the CMS (130 lines)", "dim"),
+    "lifecycle:",
+    "  transitions:",
+    "    - {action: submit,  from: draft,     to: in_review}",
+    "    - {action: publish, from: in_review, to: published}",
+    "    - {action: archive, from: published, to: archived}",
+    "",
+    "- id: no_self_decision",
+    '  description: "Nobody may publish or reject an',
+    "    article they authored themselves — separation",
+    '    of duties, with no exception for admins."',
+    "  effect: deny",
+    "  when: 'action in [\"publish\", \"reject\"]",
+    "         and actor.is_author'",
+])
+code_block(490, 398, 430, [
+    ("$ curl -sX POST $CMS/articles/7/publish -H 'X-User: ed'", "cmd"),
+    ("HTTP/1.1 403 Forbidden", "fail"),
+    "{",
+    '  "error": "forbidden",',
+    ('  "denied_by": "no_self_decision",', "ok"),
+    '  "description": "Nobody may publish or reject an',
+    '                  article they authored themselves…",',
+    '  "situation": {"role": "editor", "action": "publish",',
+    '                "is_author": true, "state": "in_review"}',
+    "}",
+], dark=True)
+bullets(40, 150, [
+    "One vocabulary end to end: the ticket sentence, the rule id, the solver's finding, and the 403 body all say no_self_decision.",
+    "Deny beats allow, silence means deny (Cedar/XACML semantics, stated once) — so admins are denied too: policy, not privilege, decides.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 7
-header("Evidence · rule level (P2)", "Asking the logic engine: do my rules even make sense?")
-text_block(40, H - 108,
-           "Before any model or code exists, the invariant set itself can be interrogated (P2: a small CLI over the "
-           "Z3 solver; rules are typed and plain enough to review sentence-by-sentence).",
-           size=12.5, width=880)
-rows = [
-    ("“Do any rules contradict?”", "IMPOSSIBLE", WARN,
-     "Two developers add “at most one app version at a time” and “at least two during rolling "
-     "deploys.” The solver returns the minimal conflicting pair — by name — out of the whole rule set."),
-    ("“What states do the rules allow?”", "SATISFIABLE", MUTED,
-     "Enumerated example states reveal a forgotten guard: “dropping the column while an old binary "
-     "still runs” was allowed. Nobody wrote a wrong rule — one rule was missing. The witness shows it."),
-    ("“Does my claim follow from the rules?”", "VALID / INVALID", OK,
-     "“Contract never starts while v1 runs” → VALID: the rules entail it, no test suite needed. "
-     "The same query gates agent edits in P4/P5 today."),
-]
-yy = H - 160
-for q, verdict, col, b in rows:
-    panel(40, yy - 82, 880, 82)
-    c.setFont(FB, 12)
-    c.setFillColor(INK)
-    c.drawString(54, yy - 22, q)
-    chip(700, yy - 26, verdict, color=col)
-    text_block(54, yy - 42, b, size=10.8, width=800)
-    yy -= 94
-text_block(40, 92, "Each verdict is also emitted as JSON — the machine-readable half of the agent loop, now closed (slide 10).",
-           size=11.5, width=880, color=MUTED, font=FI)
+header("Developer experience · the gate", "What must never happen — and what must keep working")
+text_block(40, H - 100,
+           "The gate is two YAML files, frozen for agents. Safety quantifies over EVERY situation the rules allow; "
+           "possibility demands witnesses (a “fix” that makes the system safely do nothing fails); features are frozen "
+           "scenarios whose refusals are expected by name.", size=12, width=880)
+code_block(40, 386, 430, [
+    ("# safety.yaml — FROZEN for agents editing rules", "dim"),
+    "safety:",
+    "  - id: S2_separation_of_duties",
+    "    requires: 'implies(action == \"publish\",",
+    "                       not actor.is_author)'",
+    ("possibility:            # the anti-“does nothing” half", "dim"),
+    "  - id: P2_review_by_non_author",
+    "    witness: 'action == \"read\" and not actor.is_author",
+    "              and resource.state == \"in_review\"'",
+    "lifecycle:",
+    "  only_into: {published: [publish]}",
+    "",
+    ("# features.yaml — refusals expected BY NAME", "dim"),
+    "- {actor: ed,   action: publish,",
+    "   expect: deny,  denied_by: no_self_decision}",
+    "- {actor: erin, action: publish,",
+    "   expect: allow, state_after: published}",
+])
+code_block(490, 386, 430, [
+    ("$ python -m analysis.analyze rulesets/cms", "cmd"),
+    "rules: 14 (5 deny, 9 allow) | situations: 8640",
+    "-- dead rules --",
+    ("   ok: all 14 rules are effectual", "ok"),
+    "-- assumptions --",
+    ("   ok: creating roles are all assumable authors", "ok"),
+    "-- safety: must hold in EVERY allowed situation --",
+    ("   ok  S1 … S9   (9 properties)", "ok"),
+    "-- possibility: must hold in SOME situation --",
+    ("   ok  P2_review_by_non_author", "ok"),
+    "       witness: {role: editor, action: read, …}",
+    "-- lifecycle --",
+    ("   ok: 6 transitions live, gated entries respected", "ok"),
+    "-- feature runs (frozen scenarios) --",
+    ("   ok  5 features (34 steps)", "ok"),
+    ("VERDICT: PASS (0 findings)", "ok"),
+], dark=True)
+bullets(40, 118, [
+    "This runs in CI on every rule change, in seconds. Merging a rule diff means: no dead rules, every safety property proven over all situations, every workflow still alive, every scenario still passing.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 8
-header("Evidence · real system (P3)", "The same invariant, enforced against real Postgres")
-text_block(40, H - 108,
-           "P3: a real Rust API (two versions running side by side), a real Postgres database, the real five-step "
-           "migration — exercised by generated concurrent traffic while the migration runs (Hypothesis test harness).",
-           size=12.5, width=880)
-stats = [("735", "concurrent requests across all migration phases", OK),
-         ("0", "errors with the proven choreography", OK),
-         ("59", "“column does not exist” errors per run when the drain step is deliberately skipped", WARN),
-         ("1", "genuine race found in the ‘modern’ instance itself (and fixed)", WARN)]
-x = 40
-for n, b, col in stats:
-    panel(x, 260, 205, 120)
-    c.setFont(FB, 30)
-    c.setFillColor(col)
-    c.drawString(x + 16, 336, n)
-    text_block(x + 16, 314, b, size=10.2, width=175, color=INK)
-    x += 225
-y = bullets(40, 230, [
-    "The deliberately-broken run reproduces exactly the anomaly the model predicted — the formal invariant is load-bearing, not decorative.",
-    "Bonus find: a check-then-act race — the app reads migration flags, then executes SQL a moment later; a contract commit in that gap 500s a fully-migrated instance. The class of bug that survives code review and unit tests.",
-    "Design-level proof (P1) and real-system evidence (P3) tell the same story about the same invariants.",
-], 880, size=12, gap=8)
+header("Developer experience · a bad edit cannot hide", "Two plausible edits, seven named findings")
+text_block(40, H - 100,
+           "Sabotage episode 1: two locally-reasonable edits, held to the frozen gate (--gate points at the pinned copy).",
+           size=12, width=880)
+code_block(40, 412, 880, [
+    ("# edit 1: legal adds a privacy rule (LEG-77)          # edit 2: separation of duties removed", "dim"),
+    ("+ - id: strict_privacy", "add"),
+    ("+   effect: deny", "add"),
+    ("+   when: 'action == \"read\" and resource.state != \"published\" and not actor.is_author'", "add"),
+    ("- - id: no_self_decision                              # “admins found it annoying”", "del"),
+])
+code_block(40, 316, 880, [
+    ("$ python -m analysis.analyze rulesets/cms-buggy --gate rulesets/cms", "cmd"),
+    ("FAIL DEAD allow rule 'editor_read_all': it never grants anything", "fail"),
+    "     (overridden where it overlaps: deny_inactive, strict_privacy)",
+    ("FAIL S2_separation_of_duties", "fail"),
+    "     counterexample: {role: editor, action: publish, is_author: true, state: in_review, …}",
+    "     allowed by: editor_decide",
+    ("FAIL P2_review_by_non_author: IMPOSSIBLE — blocked by deny rule(s): strict_privacy", "fail"),
+    ("FAIL feat_publish_lifecycle: step 4 (ed read): expected allow, got deny (rule: strict_privacy)", "fail"),
+    ("VERDICT: FAIL (7 findings)", "fail"),
+], dark=True)
+bullets(40, 138, [
+    "Four different detectors fire at once: the dead-rule check catches the silent masking that rotted 1980s rule bases; ∀-safety catches the removed deny with a concrete situation and the granting rule named; ∃-possibility catches the workflow the new deny killed — the classic safety-only blind spot; and the frozen features catch both, by name.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 9
-header("Worked example · a CMS", "Ten security rules, one knob, every artifact runnable")
-text_block(40, H - 108,
-           "The same workflow on a familiar domain (examples/cms): roles, draft articles, a review/publish lifecycle, "
-           "public access. Stakeholder sentences become named, typed rules; the names travel from tickets to solver "
-           "verdicts to model invariants to the app's 403 bodies.",
-           size=12.5, width=880)
-panel(40, 230, 430, 150, fill=HexColor("#E9F1EC"))
-c.setFont(FB, 12.5); c.setFillColor(OK); c.drawString(54, 356, "cms_live — re-check auth on every action")
-text_block(54, 334,
-           "20,000 simulated traces clean; Apalache verifies to depth 10; the safety invariant is INDUCTIVE with almost "
-           "no strengthening — check-at-use is structurally the right design, and now that's a theorem (Track I). "
-           "Policy suite over real HTTP: 5/5.", size=10.8, width=402)
-panel(490, 230, 430, 150, fill=HexColor("#F6E8E1"))
-c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(504, 356, "cms_cached — trust the session snapshot")
-text_block(504, 334,
-           "Counterexample in under a second: author logs in, admin deactivates the account, the still-open session "
-           "publishes anyway (stale JWT / cached claims). The same invariant provably has NO inductive proof here "
-           "(concrete CTI). Replayed on the real app: 2/2 stale-token violations reproduced over HTTP.",
-           size=10.8, width=402)
-y = bullets(40, 200, [
-    "The rule oracle caught cross-ticket conflicts before any code: SEC-482 vs CMS-1201 (session length) flagged IMPOSSIBLE with the two rule names in the unsat core; LEG-77 silently killing review-before-publish flagged INVALID.",
-    "Gates need BOTH directions: the happy-path feature test passes in both configurations — features don't catch the race, safety doesn't catch a feature dying. Every gate = safety + feature runs/witnesses.",
-], 880, size=11.5, gap=7)
+header("Episode · background processing", "A background job is just another actor")
+text_block(40, H - 100,
+           "Ticket SYND-9: import published articles from publisher feeds, nightly. The importer gets no back door — it is "
+           "an unprivileged HTTP client (role importer), so everything interesting about it is policy:",
+           size=12, width=880)
+code_block(40, 384, 430, [
+    ("# the pipeline cannot skip provenance…", "dim"),
+    "- id: import_needs_provenance",
+    "  effect: deny",
+    "  when: 'actor.role == \"importer\"",
+    "         and action == \"create\"",
+    "         and not resource.has_source'",
+    "",
+    ("# …and a stolen importer credential is contained:", "dim"),
+    "- id: importer_scope",
+    "  effect: deny",
+    "  when: 'actor.role == \"importer\"",
+    "         and action not in [\"create\", \"read\",",
+    "                             \"submit\"]'",
+])
+code_block(490, 384, 430, [
+    ("$ analyze rulesets/cms-import-naive --gate rulesets/cms", "cmd"),
+    ("  # the obvious draft: syndicate straight to published", "dim"),
+    ("  # (“the publisher already reviewed it”)", "dim"),
+    ("FAIL role 'importer' can create items, but the", "fail"),
+    "     assumptions say it can never be an author —",
+    "     stale assumption: analysis would silently",
+    "     skip every importer-authored situation",
+    ("FAIL lifecycle: 'syndicate' (draft -> published)", "fail"),
+    "     enters 'published'; gate allows only ['publish']",
+    ("FAIL S8_imports_have_provenance  (+S9, +feature)", "fail"),
+    ("VERDICT: FAIL (5 findings)", "fail"),
+], dark=True)
+bullets(40, 148, [
+    "Falsifier RB1 (tickets land as rule diffs): held — engine/ untouched; the change was 1 role, 1 field, 3 rules, 2 clients.",
+    "The episode forced two new generic gate kinds: stale-assumption detection (the silent-unsoundness class) and gated lifecycle entries — review cannot be skirted by inventing a new transition into published.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 10
-header("Reframing · rule-based systems", "Ground-up service: the rule base IS the program")
-text_block(40, H - 108,
-           "The other framing, built (examples/rule-driven-cms, note 13): instead of writing code and holding it to a "
-           "spec from outside, the developer writes ONE artifact — a rule base — and a generic, domain-free engine "
-           "executes it. No handlers exist; the model↔code boundary disappears for the ruled part of the system.",
-           size=12.5, width=880)
-panel(40, 262, 285, 128)
-c.setFont(FB, 26); c.setFillColor(ACCENT_D); c.drawString(56, 348, "313 : 1,097")
-text_block(56, 326, "lines of YAML that ARE the CMS vs lines of generic Python engine+analyzer — "
-           "shared unchanged by three services (CMS, tickets, receivables).",
-           size=10.2, width=255, color=INK)
-panel(345, 262, 285, 128)
-c.setFont(FB, 26); c.setFillColor(OK); c.drawString(361, 348, "8,640 / 8,640")
-text_block(361, 326, "situations where runtime evaluation and the Z3 compilation of every rule agree — "
-           "exhaustive per ruleset (26,880 more for receivables).",
-           size=10.2, width=255, color=INK)
-panel(650, 262, 270, 128)
-c.setFont(FB, 26); c.setFillColor(WARN); c.drawString(666, 348, "7 + 5 findings")
-text_block(666, 326, "against the FROZEN gate: two planted policy edits (7) and a naive "
-           "background-import extension (5) — all named.", size=10.2, width=240, color=INK)
-y = bullets(40, 232, [
-    "Z3 reviews the rule base itself, per change: dead rules (never alter a decision — one redundant guard was proven useless and deleted), stale assumptions, ∀-safety with the granting rule named, ∃-possibility with the blocking deny named, lifecycle liveness + gated entries, frozen feature runs with expected denials by name.",
-    "Background processing under the rules, not beside them: nightly publisher imports run as an unprivileged actor (role importer) — provenance mandatory, containment ∀-checked (create/read/submit only), editors still decide; the naive syndicate-straight-to-published design is a named lifecycle finding. Engine untouched (falsifier RB1 holds).",
-    "Domain transfer measured (receivables: money owed, bank-email matching, due dates): the domain's meaning is 290 lines of YAML — money truth only from the bank feed, append-only ledger, tenant isolation, overdue only past due — while the engine grew ~100 generic lines for ONE missing concept, time (date projections + clock, multi-source transitions). Fuzzy matching stayed client-side, correctly.",
-    "Same 403 vocabulary end to end: ticket sentence → rule id → solver finding → {\"denied_by\": rule_id} over real HTTP.",
-    "The synthesis (note 13): rules are the programming surface, the solver is the reviewer, and proof effort concentrates on the once-proven engine — pattern 1 of note 12 (Cedar's shape), widened from authz to a whole service. Time, relations, and computation still escalate up the ladder.",
-], 880, size=11.3, gap=7)
+header("Episode · domain transfer", "Same engine, different world: money you are owed")
+text_block(40, H - 100,
+           "The transferability test, from the ticket: “the user describes the amount they're owed, the approximate payer "
+           "name or exact payment reference, and the due date; the system provides a dashboard and email notifications "
+           "about overdue payments; bank transaction emails settle claims.”", size=12, width=880, color=MUTED)
+code_block(40, 372, 430, [
+    ("projections:            # time enters the vocabulary", "dim"),
+    "  - {name: is_past_due, kind: date_passed,",
+    "     field: due_date}",
+    "",
+    ("# the ticket sentence, as a rule:", "dim"),
+    "- id: claim_needs_identification",
+    "  effect: deny",
+    "  when: 'action == \"create\"",
+    "         and not (resource.has_payer_name",
+    "                  or resource.has_reference)'",
+    "",
+    ("# even the clock bot obeys the calendar:", "dim"),
+    "- id: no_premature_overdue",
+    "  effect: deny",
+    "  when: 'action == \"mark_overdue\"",
+    "         and not resource.is_past_due'",
+])
+split = [
+    ("290 lines of YAML — the domain", OK,
+     "Money truth only from the bank feed (admins bounce off only_feed_settles), "
+     "absolute tenant isolation, append-only ledger, calendar law: 13 rules, 10 "
+     "safety + 7 possibility properties, all solver-checked."),
+    ("~100 generic engine lines — the transfer cost", ACCENT_D,
+     "One missing concept: TIME. Declared date projections + an engine clock "
+     "(--today, /__clock test seam), multi-source transitions (settle from "
+     "awaiting AND overdue), a feature-file clock (advance_days)."),
+    ("Client-side, correctly — the projection boundary", WARN,
+     "Email parsing, the fuzzy matching itself (exact reference, else normalized "
+     "payer name + exact amount), reminder dedup, cron. Cross-item and "
+     "approximate: beyond any per-situation vocabulary."),
+]
+yy = 372
+for t, col, b in split:
+    panel(490, yy - 84, 430, 84)
+    c.setFont(FB, 10.5)
+    c.setFillColor(col)
+    c.drawString(504, yy - 18, t)
+    text_block(504, yy - 33, b, size=9.2, width=402)
+    yy -= 92
+bullets(40, 96, [
+    "The transfer worked and its cost is measurable — and conceptual, not volumetric: the engine was missing time, not receivables.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 11
-header("The agent loop closed (P4)", "Same bug, same model, same prompt — the gate decides")
-text_block(40, H - 108,
-           "P4 seeds the historical IS-NULL bug into the migration protocol and lets a headless LLM repair it against the "
-           "frozen spec (diffed mechanically, reverted on tamper). Run twice, changing ONLY the gate:",
-           size=12.5, width=880)
-panel(40, 236, 430, 154, fill=HexColor("#F6E8E1"))
-c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(54, 366, "Episode 1 — safety-only gate")
-text_block(54, 344,
-           "Repair in 1 round, invariants untouched, 30k traces + Apalache green — and WRONG in a way the gate "
-           "couldn't see: the fix preserves safety by sacrificing completion (a stale row now blocks the switch "
-           "forever). The safest system does nothing: a safety-only gate happily accepts it.",
-           size=10.8, width=402)
-panel(490, 236, 430, 154, fill=HexColor("#E9F1EC"))
-c.setFont(FB, 12.5); c.setFillColor(OK); c.drawString(504, 366, "Episode 2 — gate + frozen feature runs & witness")
-text_block(504, 344,
-           "Only change: adversarial stale-row-recovery run + completion-reachability witness added to the gate. "
-           "Same generic prompt, same model: FULL fix in one round (IS-DISTINCT backfill + switch guard), "
-           "30k traces + Apalache clean, completion witnessed in 84% of traces.",
-           size=10.8, width=402)
-y = bullets(40, 206, [
-    "The lesson we now enforce as a guardrail: invest in gate strength, not natural-language steering. Weaker/cheaper models are fine when the gate is strong.",
-    "Each counterexample becomes a frozen gate item — the gate ratchets, it never regresses.",
-], 880, size=12, gap=8)
-text_block(40, 120,
-           "Boundary by construction (Track G): protected app operations require a Grant<Op> capability token only the "
-           "verified kernel can mint — bypassing authorization is now a pinned COMPILE ERROR (E0639/E0308), not a lint or a convention.",
-           size=12, width=880, color=ACCENT_D)
+header("Developer experience · two days in production", "The demo transcript, verbatim")
+code_block(40, 420, 880, [
+    ("$ python receivables_demo.py                              (engine clock: 2026-08-11)", "cmd"),
+    "-- users register what they are owed --",
+    ("   ok  rita's dashboard shows exactly her 3 claims (uma's is invisible)", "ok"),
+    "-- day 1: the bank's transaction emails arrive --",
+    ("   ok  matched by approximate name (JOHN SMITH) and exact reference (INV-2026-001)", "ok"),
+    ("   ok  the stranger's transfer is held for manual review, settles nothing", "ok"),
+    "-- day 1: the overdue sweeper runs (it attempts EVERY awaiting claim) --",
+    ("   ok  every attempt refused by name: [(3, 'no_premature_overdue'), (4, …)]", "ok"),
+    "-- 30 days pass (clock -> 2026-09-10); the sweeper runs again --",
+    ("   ok  claim 3 (due 08-15) is overdue; uma's (due 09-30) is protected", "ok"),
+    "        reminder -> rita@example.com: Payment overdue: EUR 500.00 (due 2026-08-15)",
+    "-- day 2: the late payment finally lands --",
+    ("   ok  ACME S.R.O. matches the overdue claim 3; settle succeeds", "ok"),
+    ("   ok  even the admin cannot fake money truth: 403 only_feed_settles", "ok"),
+    ("VERDICT: PASS", "ok"),
+], dark=True)
+bullets(40, 150, [
+    "The sweeper is deliberately dumb — it tries everything, and the rules hold the clock accountable, not vice versa. A buggy (or compromised) bot is bounded by policy the solver already checked over every situation.",
+    "Late payments land because possibility W2 (“settle from overdue exists”) is part of the frozen gate — liveness guarded the design before the demo existed.",
+], 880, size=11, gap=6)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 12
-header("Autonomous optimization (P5)", "The agent makes it 3.9x faster — and cannot make it wrong")
-text_block(40, H - 108,
-           "The end-goal demo: an agent maximizes benchmark throughput on the CMS app (seeded with a global Mutex and "
-           "fingerprinting-under-lock). The frozen gate: boundary lint + policy suite + race suites + spec-frozen paths "
-           "enforced by git. The agent optimizes freely inside the fence.",
-           size=12.5, width=880)
-stats = [("3.94x", "accepted speedup on the benchmark, all gates green", OK),
-         ("2", "correctness-breaking “optimizations” attempted and mechanically absorbed by the gate", WARN),
-         ("1", "marginal edit rejected by the improvement threshold", MUTED)]
+header("Scoreboard", "Three services, one engine, every claim executable")
+stats = [
+    ("3 : 1", "services per engine — CMS, tickets, receivables on 1,097 lines "
+     "of domain-free Python (grep-provable: zero domain words outside docstrings).", ACCENT_D),
+    ("313 : 1,097", "lines of YAML that ARE the CMS vs the shared generic "
+     "engine+analyzer. Receivables: 290. Tickets: 100.", ACCENT_D),
+    ("36,096", "situations checked exhaustively — runtime evaluation and the "
+     "Z3 compilation agree on every one (8,640 + 576 + 26,880).", OK),
+    ("12", "named findings across two sabotaged rule bases (7 + 5); zero "
+     "false passes; every finding carries a rule name or a concrete situation.", WARN),
+]
 x = 40
 for n, b, col in stats:
-    panel(x, 250, 285, 130)
-    c.setFont(FB, 28)
+    panel(x, 280, 205, 120)
+    c.setFont(FB, 24)
     c.setFillColor(col)
-    c.drawString(x + 16, 334, n)
-    text_block(x + 16, 310, b, size=10.6, width=255, color=INK)
-    x += 305
-y = bullets(40, 216, [
-    "One rejected attempt was identity caching — exactly the stale-auth bug class the model, the code proof, and the race suite all encode. Three independent layers said no.",
-    "Counterexamples, not humans, did the reviewing. The developer's only artifact is the spec.",
-], 880, size=12, gap=8)
+    c.drawString(x + 14, 358, n)
+    text_block(x + 14, 338, b, size=9.0, width=178)
+    x += 225
+c.setFont(FB, 12)
+c.setFillColor(ACCENT_D)
+c.drawString(40, 250, "What the analyzer asks of every rule-base change (seconds, in CI):")
+bullets(40, 226, [
+    "Is any rule dead — does removing it change no decision? (rule rot, reversed: two redundant guards were proven useless and deleted)",
+    "Do the safety properties hold in EVERY allowed situation? If not: the situation + the granting rule.",
+    "Is every workflow still POSSIBLE? If not: the blocking deny, found by re-checking without each deny.",
+], 430, size=10, gap=6)
+bullets(490, 226, [
+    "Are the assumptions consistent with the rules? (every creating role must be an assumable author)",
+    "Is the lifecycle live and are gated states entered only through their gate (only_into)?",
+    "Do the frozen feature scenarios still run — with every expected refusal denied by the right rule?",
+], 430, size=10, gap=6)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 13
-header("Escalation: from tests to theorems", "“Never happens” now means proven — at five levels")
-text_block(40, H - 104,
-           "Bounded checking says “safe up to k steps at this size.” Phase 3 removed the qualifiers (all PROVEN, tracks I–M):",
-           size=12.5, width=880)
-rungs = [
-    ("Inductive invariants — safe at EVERY depth", "Track I · Quint/Apalache",
-     "7-conjunct strengthening for the migration protocol, ~10s to verify; CMS live-mode invariant inductive nearly "
-     "for free, cached-mode provably has no such proof (concrete CTI). Strengthening effort is itself a design signal."),
-    ("Parameterized — ANY number of keys & instances", "Track J · mypyvy/EPR",
-     "Hand invariant verifies in 0.38s; UPDR independently INFERRED a 9-clause proof in 5.7s (machine-found, zero human "
-     "strengthening). Negative control: the buggy variant provably has NO universal inductive invariant."),
-    ("Liveness under fairness — it always completes", "Track M · TLC + WF",
-     "<>(phase=DONE) proven over the complete 623-state graph, even under unbounded write interference — stronger than "
-     "predicted. Dropping rollout fairness yields the stalled-deploy lasso: the assumption is necessary, and named."),
-    ("Hyperproperties — no information leak", "Track K · self-composition",
-     "“Draft contents never influence anonymous observations” relates PAIRS of traces — per-request checks cannot even "
-     "state it. Proven inductively on the self-composed CMS; the leaky variant yields a machine-found two-world distinguisher."),
-    ("Real code — the app's session/identity state machine", "Track L · Dafny",
-     "Freshness, revocation & demotion immediacy proven (14/14 VCs) on logic extracted from main.rs; the cached-stale "
-     "behavior is a machine-checked witness; a buggy resolver is rejected. Open gap: extraction fidelity (documented)."),
+header("Where it stops", "Kept deliberately sharp")
+rows = [
+    ("The projection boundary", "Rules see finite booleans (is_author, has_source, is_past_due). Fuzzy matching, "
+     "cross-item invariants (“no two claims with one reference”, “≤3 published per author”) live in clients today — "
+     "properly in store constraints (P9: the invariant→Postgres compiler that doesn't exist yet, anywhere)."),
+    ("No time-interleaving", "Single-situation rules can't see races: the demoted author who is still is_author, the "
+     "stale session. That is rung 2's job — the Quint temporal twin (falsifier RB4) stays on the ladder."),
+    ("The clock is a trust root (RB6)", "is_past_due is only as true as the engine's date. The analyzer proves “overdue "
+     "only when past due” relative to the projection; a skewed clock breaks it silently. The temporal twin should model skew."),
+    ("One entity per rule base", "Receivables dodged it (transactions live with the bank; only claims are ruled). "
+     "Linked ruled entities — invoice↔payment↔dunning — need N rule bases plus client joins, or engine work on relations."),
+    ("The engine is unproven Python", "Fine for research; the production form is a verified engine — Cedar's Lean proofs, "
+     "or our own track-D Dafny→Go shape — so trust rests on one proof plus per-change analysis."),
 ]
-yy = H - 138
-for t, tag, b in rungs:
+yy = H - 104
+for t, b in rows:
     panel(40, yy - 62, 880, 62)
     c.setFont(FB, 11)
     c.setFillColor(ACCENT_D)
     c.drawString(54, yy - 18, t)
-    c.setFont(FB, 9)
-    c.setFillColor(MUTED)
-    c.drawRightString(905, yy - 18, tag)
     text_block(54, yy - 33, b, size=9.4, width=845)
     yy -= 68
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 14
-header("The honest question", "What binds the model to the code? A ladder, now fully exercised")
-text_block(40, H - 104,
-           "Model↔code drift is the classic failure mode of industrial formal methods. Every rung below is implemented "
-           "and measured in this repo (tracks B–E, G, L):",
-           size=12.5, width=880)
-rungs = [
-    ("5 · Proofs in / code from the spec", "proof", INK,
-     "Dafny authorization kernel proven against all 10 rules, compiled to Go, embedded and demoed (Track D); the app's "
-     "session logic proven (Track L); Grant<Op> makes bypass a compile error (Track G). Kani vs exhaustive measured "
-     "(Track E): exhaustive wins at 64 points; Kani proves a 2^131-point domain in ~0.1s — adopt when ids/strings enter."),
-    ("4 · Trace validation", "strong evidence", ACCENT_D,
-     "Real app action logs compile into a generated Quint run: “was this a legal behavior of the model?” The cached-mode "
-     "stale-token publish is accepted by the app but refused by the model — conformance violation caught from client-side "
-     "logs alone (Track B)."),
-    ("3 · Model-based testing", "strong evidence", ACCENT_D,
-     "Model-generated traces drive the real API: 240/240 steps at parity across 3 runs; all 6 replayed race "
-     "counterexamples rejected by the live app at exactly the predicted step (Track C)."),
-    ("2 · Spec-derived tests against the real system", "evidence", ACCENT_D,
-     "Migration harness 735 requests / 0 errors; CMS policy suite 5/5; deliberately-broken runs reproduce the model's "
-     "predicted anomalies (P3)."),
-    ("1 · Shared vocabulary", "traceability", MUTED,
-     "One set of invariant names from tickets to rules to model to the app's 403 bodies. Proves nothing alone — makes "
-     "every failure traceable to a requirement."),
-]
-yy = H - 140
-for t, tag, col, b in rungs:
-    panel(40, yy - 60, 880, 60)
-    c.setFont(FB, 10.5)
-    c.setFillColor(col)
-    c.drawString(54, yy - 17, t)
-    chip(780, yy - 21, tag, color=col)
-    text_block(54, yy - 31, b, size=9.2, width=710)
-    yy -= 66
-footer(); c.showPage()
-
-# ---------------------------------------------------------------- slide 15
-header("Language scouting", "Is F* the endgame rule language? Verdict: no — but steal two ideas")
-text_block(40, H - 104,
-           "F* is the purist endpoint of “rules as abstraction”: the type IS the rule (dependent/refinement types, "
-           "SMT-checked, Pulse separation logic for concurrency; production-proven in Windows/Linux/Firefox crypto). "
-           "Research note 11 evaluates it for our SaaS setting:",
-           size=12.5, width=880)
-panel(40, 226, 430, 160, fill=HexColor("#F6E8E1"))
-c.setFont(FB, 12.5); c.setFillColor(WARN); c.drawString(54, 362, "Why not primary")
-bullets(54, 336, [
-    "LLM proof automation: ~1/3–1/2 of proofs (Microsoft's own FStarDataSet) vs Dafny's 86%; absent from the 2026 vericoding benchmark entirely.",
-    "Extracts to OCaml/C/Rust — no web/SQL/framework story; could only ever be the kernel language, where Dafny already wins.",
-    "Failed obligations are Z3 timeouts, not counterexamples — poison for a frozen gate where red must mean “your edit is wrong”.",
-], 402, size=9.6, gap=6, dot_color=WARN)
-panel(490, 226, 430, 160, fill=HexColor("#E9F1EC"))
-c.setFont(FB, 12.5); c.setFillColor(OK); c.drawString(504, 362, "Worth stealing")
-bullets(504, 336, [
-    "The 3DGen pattern (Microsoft): agents write in a small constrained DSL; a pre-verified toolchain compiles it to provably correct code — ZERO prover calls per feature. Our translate/validate split, shipped.",
-    "Effects & indexed types as by-construction boundaries — strictly stronger than our Grant<Op> tokens, if we ever need a richer kernel.",
-], 402, size=9.6, gap=6, dot_color=OK)
-text_block(40, 196,
-           "Falsifiable predictions logged (F1–F3), incl.: a DSL-with-verified-checker loop for tenant isolation beats the "
-           "P4 gate on round count with zero per-feature proofs — testable today in our existing stack (P2's Z3 core). "
-           "Since logged: industry confirmed the shape three times over — next slide.",
-           size=12, width=880, color=ACCENT_D)
-footer(); c.showPage()
-
-# ---------------------------------------------------------------- slide 16
-header("Scaling rung 5", "Five ways proofs meet code — ranked for an LLM-built SaaS (note 12)")
-patterns = [
-    ("1 · Verified engine + small DSL", "zero proofs/feature", OK,
-     "Prove the engine once, agents write rules in an analyzable DSL. AWS shipped this shape three times (Cedar with "
-     "Lean-proven authorizer + sound-and-complete symbolic analysis, Bedrock AR checks, AgentCore's NL→Cedar loop) — "
-     "and we now have it end-to-end: examples/rule-driven-cms runs a whole CMS from one rule base on a generic engine, "
-     "Z3 gating every rule change (note 13)."),
-    ("2 · Proven kernel, generated & embedded", "cloud-scale proof", OK,
-     "Track D at scale: AWS rewrote IAM authorization in Dafny→Java — ~10^9 authorizations/second, spec validated by "
-     "shadow-testing 10^15 production samples. Dafny is the LLM sweet spot: 86–93% on proof benchmarks; its top toolchains "
-     "independently converged on our frozen-spec diff-check (guardrail 1)."),
-    ("3 · Proofs in the code — Rust only, honestly", "now CI-priced", ACCENT_D,
-     "VeruSAGE: agents complete 81% of 849 proof tasks from 8 real verified systems at ~$5.61 and ~7 min per task. "
-     "Flux adds a cheap refinement-type tier (specs on signatures, inference does the rest). Go costs 4–10 spec lines "
-     "per code line; TypeScript and Python have no sound static story — the honest answer is Rust or nothing."),
-    ("4 · Types as by-construction boundaries", "zero CI cost", ACCENT_D,
-     "Track G's Grant<Op> tokens: ordinary compiler, no solver. Composes under every other pattern — the kernel's "
-     "guarantees only reach the app if bypass is a compile error."),
-    ("5 · Verified runtime enforcement", "two gaps to own", WARN,
-     "Monitor synthesis is production-thin. Found instead: NO invariant→Postgres-constraint compiler exists (theory "
-     "ready: invariant confluence), and NO verified schema-migration tool exists — our P1 + tracks I/J/M is the "
-     "state of the art. New falsifiers R1–R5, prototypes P8 (Cedar shootout) and P9 (constraint compiler)."),
-]
-yy = H - 128
-for t, tag, col, b in patterns:
-    ph = 66 if len(b) > 220 else 50
-    panel(40, yy - ph, 880, ph)
-    c.setFont(FB, 10.5)
-    c.setFillColor(col)
-    c.drawString(54, yy - 17, t)
-    chip(768, yy - 21, tag, color=col)
-    text_block(54, yy - 31, b, size=9.0, width=700)
-    yy -= ph + 6
-text_block(40, yy - 4,
-           "Nobody has published LLM-generated, machine-verified authz/billing/tenancy/migration logic — every production "
-           "verified artifact above was hand-written by experts. That unoccupied intersection is this project's lane.",
-           size=10.5, width=880, color=ACCENT_D)
-footer(); c.showPage()
-
-# ---------------------------------------------------------------- slide 17
 header("Guardrails · CLAUDE.md", "What we learned the hard way — now enforced")
 gr = [
-    ("The spec is frozen for agents", "Enforced mechanically — diff the frozen region, revert, fail the round. Never by convention or prompt."),
-    ("Gates need both directions", "Safety-only gates accept fixes that trade away liveness (“the safest system does nothing”). Every gate = safety + feature runs + proof obligations."),
-    ("Gate strength beats NL steering", "Same bug, model, prompt: the stronger gate turned a partial fix into the full fix. Cheaper models are fine when the gate is strong."),
-    ("Escalate to proofs", "Bounded < inductive (any depth) < parameterized (any size) < liveness under fairness < hyperproperties via self-composition."),
-    ("Translate / validate split", "LLM translation of NL→formal is unsound — always followed by a sound solver step. Humans review specs, never agent edits."),
-    ("Counterexamples are the currency", "Machine-readable (ITF JSON, unsat cores, named 403s); one invariant vocabulary from ticket to runtime error."),
-    ("Verify sub-agent claims", "The checker corrected the author several times — that is the method working. Dead ends and falsified predictions are recorded."),
-    ("Boundaries by construction", "Capability tokens only the verified kernel can mint — a compile error, not a lint. Typestate over discipline."),
+    ("The spec is frozen for agents", "Enforced mechanically — the analyzer takes --gate from a pinned directory; agents edit rules, never the gate. Same contract as act I's frozen invariants."),
+    ("Gates need both directions", "Safety-only gates accept fixes that trade away liveness (“the safest system does nothing”). Every gate here = safety + possibility witnesses + frozen feature runs."),
+    ("Gate strength beats NL steering", "Same bug, model, prompt: the stronger gate turned a partial fix into the full fix (P4). Cheaper models are fine when the gate is strong."),
+    ("Escalate to proofs", "Rules (this deck) < temporal models < inductive < parameterized < liveness < hyperproperties. Climb only when the ticket needs time, relations, or computation."),
+    ("Translate / validate split", "LLM translation of NL→rules is unsound — always followed by a sound solver step. Humans review rules sentence-by-sentence, never agent edits."),
+    ("Counterexamples are the currency", "Machine-readable and named: unsat blockers, situation witnesses, denied_by 403s. One vocabulary from ticket to runtime error."),
+    ("Verify sub-agent claims", "The checker corrected the author repeatedly (two “correct” protocols, two “needed” rules). Dead ends and falsified predictions are recorded in the notes."),
+    ("Boundaries by construction", "Bots are ordinary actors with no back door; capability tokens make bypass a compile error (track G). Typestate over discipline."),
 ]
 xs2, yw = [40, 500], 420
 yy0 = H - 108
@@ -623,35 +633,33 @@ for i, (t, b) in enumerate(gr):
     text_block(x + 14, yy - 36, b, size=9.6, width=yw - 28)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 18
-header("Roadmap", "What's proven, what's parked, what's next")
+# ---------------------------------------------------------------- slide 15
+header("Roadmap", "Falsifiers on the table")
 c.setFont(FB, 13)
 c.setFillColor(OK)
-c.drawString(40, H - 110, "Done — 13 tracks, every falsifier tested")
+c.drawString(40, H - 110, "Held so far")
 bullets(40, H - 134, [
-    "Repair loop (A/F), trace validation (B), model-based testing (C), Dafny→Go kernel (D), Kani spike (E), compile-error boundary (G), gated optimization 3.94x (H).",
-    "Proofs: inductive (I), parameterized w/ machine-inferred invariant (J), noninterference (K), real-code session proof (L), liveness under fairness (M). F* scouting (note 11).",
-    "Rule-driven services (note 13): CMS, tickets, and a receivables tracker as rule bases on one generic engine; Z3 gates every rule change (7+5 named findings on planted edits); background jobs (imports, bank feed, overdue clock, notifier) are rule-contained actors; domain transfer cost measured: ~100 generic engine lines, for time.",
-], 880, size=11.5, gap=7)
+    "RB1 (tickets land as rule diffs, engine untouched): held twice — imports cost zero engine lines; the receivables transfer cost ~100 generic lines for one missing concept (time). Prediction: gate-language growth flattens as new domains reuse projections, only_into, the assumption check.",
+    "Act I stands underneath: the migration protocol and CMS model remain proven at five levels (tracks I–M); the P4/P5 loop is the template for RB5.",
+], 880, size=10.5, gap=6)
 c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
 c.drawString(40, H - 250, "Next")
 bullets(40, H - 274, [
-    "P8 — Cedar shootout (note 12, R1): the same CMS rules as Cedar policies vs our native rule engine — plus note 13's falsifiers: LLM ticket→rule fidelity (RB3), the temporal twin that should catch the demoted-author race the rules can't see (RB4).",
-    "P9 — invariant→Postgres compiler (R2): constraints/triggers where sound, isolation side-conditions explicit, residual obligations routed to the model checker. No such tool exists anywhere.",
-    "Track N — refinement mappings (serializable refines SI; app-shaped refines abstract) · Track O — verified runtime enforcement · F3 DSL loop, now industry-backed · Flux spike (R5).",
-    "TCB accounting as a first-class artifact — every “proven” names what it trusts (note 12 has the per-pattern table) and directs the next escalation.",
-], 880, size=11.5, gap=7)
-c.setFont(FB, 13)
+    "RB3 — the LLM fidelity episode: same tickets, ticket→rule-diff vs ticket→handler-code; measure human corrections needed. The bet: declarative diffs review better.",
+    "RB5 — agent repair: hand an agent the sabotaged rule bases under the frozen gate; expect ≤2 rounds (P4's result, cheaper, because diffs are rules).",
+    "RB4 — the temporal twin in Quint: the demoted-author race and clock skew that per-situation rules provably cannot see.",
+    "RB2 — scale: exhaustive backend agreement is 26,880 situations (~80 s) for receivables; per-condition projected enumeration or symbolic equivalence when it hurts. P8 — the same rules as Cedar policies (verified engine, symbolic analysis). P9 — the invariant→Postgres-constraint compiler nobody has built.",
+], 880, size=10.5, gap=6)
+c.setFont(FB, 12)
 c.setFillColor(MUTED)
-c.drawString(40, 128, "Parked (consciously, with reasons recorded)")
-text_block(40, 106,
-           "Alloy (P2/Z3 covers it) · Quint→Rust codegen (no tooling exists) · Kani for finite kernels (exhaustive is simpler; "
-           "adopt when unbounded ids/strings arrive) · Verus (release downloads proxy-blocked; Dafny stands in).",
-           size=11, width=880, color=MUTED)
+c.drawString(40, 108, "Parked (consciously, with reasons recorded)")
+text_block(40, 90,
+           "Alloy (Z3 covers it) · Quint→Rust codegen (no tooling) · Kani until unbounded domains arrive · Verus (proxy-blocked; Dafny stands in).",
+           size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 19
+# ---------------------------------------------------------------- slide 16
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillColor(ACCENT)
@@ -662,16 +670,16 @@ c.drawString(70, 400, "The one-sentence takeaway")
 c.setFont(F, 17)
 c.setFillColor(HexColor("#D7E2E9"))
 for i, ln in enumerate([
-    "Write intent once, formally, with machine help —",
-    "then let agents rewrite the code forever,",
-    "with a tireless adversary guaranteeing they never make it wrong.",
+    "The developer writes the rules and the gate; the solver reviews every change;",
+    "agents, bots, and time do their worst inside the fence.",
+    "For the ruled part of the system there is no code to review — only a rule diff and a verdict.",
 ]):
     c.drawString(70, 350 - i * 28, ln)
 c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
-c.drawString(70, 188, "Repo: research/INDEX.md (all notes) · research/09, 10 & 12 (scoreboards with falsifiers) · CLAUDE.md (guardrails)")
-c.drawString(70, 168, "Prototypes: p1 check.sh · p2 demo.sh · p3 run_demo.sh · p4 agent loop · p5 optimization loop · p6 mypyvy · p7 TLC")
-c.drawString(70, 148, "Worked examples: examples/cms (spec beside code) · examples/rule-driven-cms (rules ARE the code: CMS, tickets, receivables)")
+c.drawString(70, 200, "Try it: examples/rule-driven-cms/check.sh — tests + 5 analyses + 5 live demos, one command")
+c.drawString(70, 180, "Read it: research/13-rule-based-cms.md (the framing + both episodes) · research/INDEX.md (all notes)")
+c.drawString(70, 160, "Act I evidence: research/09, 10, 12 · prototypes p1–p7 · examples/cms (the spec-beside-code twin)")
 footer(title_page=True)
 c.showPage()
 

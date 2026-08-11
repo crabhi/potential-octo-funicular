@@ -26,6 +26,12 @@ rule-based framing (the rule base is the program; note 13).
 
 ## Change log
 
+- 2026-08-11 (slides reworked): deck regenerated ground-up with a new
+  structure — the rule-driven experiments lead, with real code on the
+  slides (rules.yaml excerpts, gate files, analyzer PASS/FAIL output,
+  the 403 body, the receivables demo transcript); act I compressed to a
+  single evidence slide; 16 slides.
+
 - 2026-08-11 (domain transfer tested): third service on the same rule
   engine — a receivables tracker (claims: amount + approximate payer name
   or exact reference + due date; bank transaction emails; overdue
