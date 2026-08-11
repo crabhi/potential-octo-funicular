@@ -28,16 +28,28 @@ else
 fi
 
 echo
-echo "==== 4. static gate: a second service (tickets) on the same engine (expect PASS) ===="
+echo "==== 4. static gate: naive nightly-import extension (expect FAIL, named findings) ===="
+if $PY -m analysis.analyze rulesets/cms-import-naive --gate rulesets/cms; then
+  echo "ERROR: the naive import extension passed the gate — the gate is broken"; exit 1
+else
+  echo "[check] good: the frozen gate rejected the naive import extension"
+fi
+
+echo
+echo "==== 5. static gate: a second service (tickets) on the same engine (expect PASS) ===="
 $PY -m analysis.analyze rulesets/tickets
 
 echo
-echo "==== 5. live: real HTTP server, frozen features replayed over the wire ===="
+echo "==== 6. live: real HTTP server, frozen features replayed over the wire ===="
 $PY live_demo.py rulesets/cms
 
 echo
-echo "==== 6. live: the tickets service — same engine, different rule base ===="
+echo "==== 7. live: the tickets service — same engine, different rule base ===="
 $PY live_demo.py rulesets/tickets
+
+echo
+echo "==== 8. live: nightly import — mock publishers -> importer job -> editorial flow ===="
+$PY import_demo.py
 
 echo
 echo "ALL CHECKS PASSED"

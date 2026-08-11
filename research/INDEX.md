@@ -26,6 +26,21 @@ rule-based framing (the rule base is the program; note 13).
 
 ## Change log
 
+- 2026-08-11 (import extension, RB1 tested): first post-v1 ticket for the
+  rule-driven CMS — nightly import of published articles from mock
+  publisher feeds. Background job = just another actor: the importer is an
+  unprivileged HTTP client (role `importer`) under the same rules; imports
+  land in review with mandatory provenance, containment rules cap a
+  compromised pipeline at create/read/submit, editors still decide.
+  Engine untouched (RB1 holds); gate language needed two generic
+  extensions the episode forced: stale-authorship-assumption detection
+  (silent-unsoundness class) and `lifecycle: only_into` (the naive
+  `syndicate: draft→published` transition evades every rule-level
+  property). Naive variant kept: 5 named findings vs the frozen gate;
+  import_demo.py runs two "nights" end-to-end (7 imported, idempotent
+  re-run, named 403s over HTTP). Episode recorded in note 13; slides
+  regenerated.
+
 - 2026-08-11 (rule-based reframing): the developer asked what ground-up
   development of a full web service looks like, and whether rule-based
   systems beat "formal methods" as the framing. Built

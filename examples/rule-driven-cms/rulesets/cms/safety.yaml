@@ -44,6 +44,27 @@ safety:
     requires: 'implies(resource.state == "archived",
                        action == "read" or actor.role == "admin")'
 
+  - id: S8_imports_have_provenance
+    description: "Nothing the import pipeline creates is ever missing its
+      source."
+    requires: 'implies(actor.role == "importer" and action == "create",
+                       resource.has_source)'
+
+  - id: S9_import_pipeline_contained
+    description: "The import pipeline can only create, submit, and read —
+      never edit, delete, or decide. (Blast radius of a compromised
+      importer credential.)"
+    requires: 'implies(actor.role == "importer",
+                       action in ["create", "read", "submit"])'
+
+# Structural gate on the lifecycle table itself: the ONLY transition that
+# may enter `published` is `publish` (which S4 pins to in_review). Without
+# this, a new transition (say `syndicate: draft -> published`) would skirt
+# review while satisfying every rule-level property above.
+lifecycle:
+  only_into:
+    published: [publish]
+
 possibility:
   - id: P1_someone_can_publish
     description: "Publishing is actually possible for someone."
@@ -66,3 +87,9 @@ possibility:
   - id: P5_public_site_works
     description: "Anonymous visitors can do something (read the site)."
     witness: 'actor.role == "anonymous"'
+
+  - id: P6_importer_can_ingest
+    description: "The import pipeline can actually deliver sourced
+      articles."
+    witness: 'actor.role == "importer" and action == "create"
+              and resource.has_source'

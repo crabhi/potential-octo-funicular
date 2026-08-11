@@ -131,6 +131,50 @@ rather than one seam per feature.
   possibility (the P4 episode-2 result, expected to replicate cheaper
   because diffs are declarative).
 
+## Episode: the first extension ticket (SYND-9, 2026-08-11) — RB1 evidence
+
+The first post-v1 ticket — *nightly import of published articles from a
+few publishers* — is background processing, historically the seam where
+rule systems lose ownership of the system. Design decision: **a background
+job is just another actor** — the importer is an unprivileged HTTP client
+(`imp-bot`, role `importer`); scheduling is cron; no back door exists to
+lose.
+
+Scoring against RB1 ("realistic tickets land as rule diffs, no engine
+changes"):
+
+- **Domain change**: 1 role + 1 provenance field + 3 rules + 1 assumption
+  edit, plus two clients (mock feeds, importer). `engine/` untouched —
+  RB1 holds for the engine.
+- **Gate change** (human ceremony, gate ratchets): S8 provenance, S9
+  pipeline containment (the stolen-credential blast radius, ∀-checked),
+  P6, one feature run — *and two new gate kinds the episode forced*:
+  1. **Stale-assumption detection.** Adding a creating role falsified
+     `a_authors_are_staff`; the failure mode is silent unsoundness (the
+     solver excludes importer-authored situations; runtime features still
+     pass because assumptions are analyzer-only). New generic check: every
+     role the rules let create must be an assumable author. This partially
+     closes the "assumptions are axioms" limit — one derived fact, not a
+     discharge story.
+  2. **Lifecycle-table jurisdiction.** The naive design (`syndicate:
+     draft → published`, "the publisher already reviewed it") evades S4,
+     which quantifies over the `publish` *action*. New gate section
+     `lifecycle: only_into: {published: [publish]}` gives the frozen gate
+     structural authority over the third artifact. Rule-level ∀-properties
+     do not cover lifecycle edits — worth remembering for RB2.
+- **Refused by the framing, correctly**: dedup/idempotency is a cross-item
+  invariant the situation vocabulary cannot state (lives in the client;
+  properly a store constraint — the P9 direction), and the schedule is
+  infrastructure. The projection boundary is real and bit on ticket #1.
+
+Naive variant kept as `rulesets/cms-import-naive/`: 5 named findings
+against the frozen gate. RB1 verdict so far: **holds, with a caveat** —
+the *rule base* absorbed the ticket, but the *gate language* needed two
+generic extensions (~35 lines of analyzer). Prediction for RB1 scoring:
+gate-language growth should flatten (new tickets reuse `only_into` and the
+authorship check); if every ticket keeps demanding new gate kinds, the
+framing is leaking complexity into the analyzer instead of removing it.
+
 ## Relation to the rest of the repo
 
 This is note 12's pattern 1 (verified engine + DSL surface) built

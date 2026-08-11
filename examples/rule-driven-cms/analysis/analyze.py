@@ -89,6 +89,7 @@ class Analyzer:
                        for p in gate.get("safety", ())]
         self.possibility = [(p["id"], p.get("description", ""), parse(p["witness"]))
                             for p in gate.get("possibility", ())]
+        self.gate_lifecycle = gate.get("lifecycle") or {}
         self.features_path = f"{gate_dir}/features.yaml"
         self.findings = []
 
@@ -153,6 +154,31 @@ class Analyzer:
             print(f"   ok: all {len(self.rb.rules)} rules are effectual "
                   f"(each changes at least one decision)")
 
+    def check_authorship(self):
+        """Assumptions are axioms — a stale one silently excludes real
+        situations from every other check. The one authorship fact the rules
+        themselves establish is checkable: any role that can be GRANTED the
+        creating transition will be an author at runtime, so the assumptions
+        must at least admit it as one."""
+        print("-- assumptions: every role that can create must be an assumable author --")
+        t = self.rb.creating_transition()
+        lit = self.sym.literal
+        action, role = self.sym.const("action"), self.sym.const("actor.role")
+        is_author = self.sym.const("actor.is_author")
+        creators, stale = [], 0
+        for r in self.rb.roles:
+            if self.sat(self.ctx, self.allowed, action == lit("action", t.action),
+                        role == lit("actor.role", r)) is None:
+                continue
+            creators.append(r)
+            if self.sat(self.assumptions, role == lit("actor.role", r), is_author) is None:
+                stale += 1
+                self.fail(f"role {r!r} can create items, but the assumptions say it can "
+                          f"never be an author — stale assumption: symbolic analysis "
+                          f"would silently skip every {r}-authored situation")
+        if not stale:
+            print(f"   ok: creating roles {creators} are all assumable authors")
+
     def check_safety(self):
         print("-- safety: must hold in EVERY allowed situation --")
         for pid, _desc, cond in self.safety:
@@ -207,9 +233,17 @@ class Analyzer:
         for st in self.rb.states:
             if st not in reachable:
                 self.fail(f"state {st!r} is unreachable from creation")
-        if not dead and all(st in reachable for st in self.rb.states):
+        gated = 0
+        for state, via in (self.gate_lifecycle.get("only_into") or {}).items():
+            for t in self.rb.transitions:
+                if t.target == state and t.action not in via:
+                    gated += 1
+                    self.fail(f"lifecycle: transition {t.action!r} ({t.source} -> "
+                              f"{t.target}) enters {state!r}, but the gate allows "
+                              f"entry only via {via}")
+        if not dead and not gated and all(st in reachable for st in self.rb.states):
             print(f"   ok: {len(live)} transitions live, "
-                  f"all {len(self.rb.states)} states reachable")
+                  f"all {len(self.rb.states)} states reachable, gated entries respected")
 
     def check_features(self):
         print("-- feature runs (pure decision engine, frozen scenarios) --")
@@ -229,6 +263,7 @@ class Analyzer:
               f"roles: {len(rb.roles)} | states: {len(rb.states)}(+none) | "
               f"actions: {len(rb.actions)} | situation space: {n_situations}")
         self.check_dead_rules()
+        self.check_authorship()
         self.check_safety()
         self.check_possibility()
         self.check_lifecycle()

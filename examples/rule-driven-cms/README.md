@@ -12,11 +12,11 @@ They write **one artifact — the rule base — and that artifact IS the
 application**:
 
 ```
- rulesets/cms/rules.yaml     the CMS: roles, lifecycle, 11 allow/deny rules   105 lines
- rulesets/cms/safety.yaml    FROZEN gate: 7 ∀-properties, 5 ∃-properties       68 lines
- rulesets/cms/features.yaml  FROZEN gate: 4 end-to-end scenarios               68 lines
+ rulesets/cms/rules.yaml     the CMS: roles, lifecycle, 14 allow/deny rules   130 lines
+ rulesets/cms/safety.yaml    FROZEN gate: 9 ∀-props, 6 ∃-props, 1 lifecycle    95 lines
+ rulesets/cms/features.yaml  FROZEN gate: 5 end-to-end scenarios               88 lines
  ──────────────────────────────────────────────────────────────────────────────
- engine/ + analysis/         generic, domain-free, reusable                  ~975 lines
+ engine/ + analysis/         generic, domain-free, reusable                 ~1010 lines
 ```
 
 The engine (HTTP server, SQLite store, decision function) contains **no
@@ -52,7 +52,7 @@ by the same engine, byte for byte.
 One condition grammar, two backends: each rule's `when` is parsed once and
 then *both* evaluated on live requests *and* compiled to Z3. The two
 backends are checked against each other **exhaustively** — the situation
-space is finite (3,600 for the CMS), so `tests/test_engine.py` compares
+space is finite (8,640 for the CMS), so `tests/test_engine.py` compares
 every condition on every situation. Model↔code drift, the standing
 problem of the spec-on-the-side examples, is closed by construction for
 the ruled part of the system.
@@ -87,7 +87,7 @@ vocabulary from ticket → rule → solver finding → runtime error.
 "unpublished material must not be accessible to anyone except the person
 who wrote it" is added as `strict_privacy`, and `no_self_decision` is
 dropped ("admins found it annoying"). Held to the **frozen** gate
-(`--gate rulesets/cms`), the analyzer returns six named findings:
+(`--gate rulesets/cms`), the analyzer returns seven named findings:
 
 ```
 FAIL DEAD allow rule 'editor_read_all': it never grants anything
@@ -100,7 +100,8 @@ FAIL P2_review_by_non_author: IMPOSSIBLE — blocked by deny rule(s): strict_pri
 FAIL feat_publish_lifecycle: step 4 (ed read): expected allow, got deny (rule: strict_privacy)
 FAIL feat_no_self_publish: step 3 (ed publish): expected deny, got allow (rule: editor_decide)
 FAIL feat_boundaries_hold: step 2 (vera read): denied by strict_privacy, expected default_deny
-VERDICT: FAIL (6 finding(s))
+FAIL feat_nightly_import: step 5 (imp-bot publish): denied by importer_scope, expected no_self_decision
+VERDICT: FAIL (7 finding(s))
 ```
 
 Every direction of this repo's gate doctrine appears at once:
@@ -130,6 +131,82 @@ already covers every situation it names (safety S7 holds without it, over
 all 3,600 situations). The solver doesn't just find bugs; it **shrinks the
 rule base** — the opposite of how rule systems historically decayed.
 
+## Extension episode: background processing (SYND-9, nightly imports)
+
+The first realistic ticket after v1 — *"import nightly published articles
+from a few publishers"* — is the classic seam where rule systems
+historically lost ownership: background jobs get a database connection and
+a cron entry, and the rules stop being the program. The design principle
+here: **a background job is just another actor.** The importer is a plain
+HTTP client (`importer.py`) with the `imp-bot` identity (role `importer`);
+it gets no back door, so everything interesting about it is policy:
+
+```yaml
+- id: importer_scope
+  description: "SYND-9: the import pipeline is contained — it may only
+    create articles, submit them for review, and read; a compromised
+    importer must not be able to edit, delete, or decide anything."
+  effect: deny
+  when: 'actor.role == "importer" and action not in ["create", "read", "submit"]'
+```
+
+What the ticket turned into (scoring falsifier RB1 from note 13):
+
+- **Rule-base diff**: one role, one provenance field (`source`), three
+  rules, one assumption edit — the whole domain change.
+- **Gate ratchet** (a human spec ceremony, as required): S8 (imports carry
+  provenance), S9 (pipeline containment — the blast radius of a stolen
+  importer credential, checked over all situations), P6, one feature run,
+  and one new gate kind (below).
+- **Clients, not engine**: `mock_publishers.py` (three canned feeds) and
+  `importer.py` (idempotent, dedups by `source`). `engine/` is untouched —
+  **zero engine changes**; the analyzer grew two *generic* checks (~35
+  lines) that the episode forced. `import_demo.py` runs two "nights"
+  end-to-end: 7 imported, second run 0/7 skipped, imp-bot's tampering and
+  self-publishing refused by name over HTTP, an editor publishes, the
+  public reads. (`check.sh` step 8.)
+
+`rulesets/cms-import-naive/` is the obvious first draft — syndicate
+straight to published ("the publisher already reviewed it"), no
+provenance, no containment, assumption forgotten. The frozen gate returns
+five named findings:
+
+```
+FAIL role 'importer' can create items, but the assumptions say it can never be
+     an author — stale assumption: symbolic analysis would silently skip every
+     importer-authored situation
+FAIL S8_imports_have_provenance    counterexample: {role: importer, action: create, ...}
+FAIL S9_import_pipeline_contained  counterexample: {role: importer, action: syndicate, ...}
+FAIL lifecycle: transition 'syndicate' (draft -> published) enters 'published',
+     but the gate allows entry only via ['publish']
+FAIL feat_nightly_import: step 1 (imp-bot create): expected deny, got allow
+VERDICT: FAIL (5 finding(s))
+```
+
+Two of those findings are new *gate kinds* the episode exposed:
+
+- **Stale assumptions are now detected.** Adding a role that can create
+  falsifies `a_authors_are_staff` — and a stale assumption doesn't fail
+  loudly, it silently *excludes* the importer-authored situations from
+  every other symbolic check (features still pass, because the runtime
+  ignores assumptions — exactly the unsound gap). The analyzer now
+  cross-checks: every role the rules let create must be an assumable
+  author. The README's "assumptions are trusted, not proven" limit is now
+  partially closed, mechanically.
+- **The lifecycle table is now gated.** S4 ("publish only from review")
+  quantifies over the `publish` action — a *new* transition
+  (`syndicate: draft → published`) sails past it and past every rule-level
+  property. The gate gained structural jurisdiction:
+  `lifecycle: only_into: {published: [publish]}`.
+
+What stayed **outside** the rules, honestly: dedup ("no two articles with
+the same source") is a cross-item invariant the per-situation vocabulary
+cannot state — it lives in the importer client, and would properly belong
+to a store constraint (the P9 invariant→Postgres-compiler direction); and
+the nightly *schedule* is infrastructure (cron), not policy. RB1 score for
+this ticket: domain change = rules + clients only; engine untouched; gate
+*language* needed two generic extensions.
+
 ## Why this framing, and where it stops
 
 The 1980s built whole businesses on rule engines (OPS5, CLIPS, Drools,
@@ -158,9 +235,9 @@ Honest limits, kept sharp on purpose:
   rung 2 is *invisible* here. Single-state rules still can't see time.
 - **Assumptions are trusted, not proven.** `a_authors_are_staff` is
   reviewable and load-bearing; if role demotion is ever added, it becomes
-  false and the analysis silently optimistic. (The fix is mechanical —
-  re-derive assumptions from the rules that establish them — but not
-  built.)
+  false and the analysis silently optimistic. The authorship direction is
+  now cross-checked mechanically (see the import episode), but that is one
+  derived fact, not a general assumption-discharge story.
 - **The engine is ~975 lines of unproven Python.** Fine for a research
   example; the production version of this pattern uses a *verified*
   engine (Cedar) so trust rests on one proof plus per-change analysis.
@@ -186,13 +263,17 @@ Honest limits, kept sharp on purpose:
 
 | Path | What |
 |------|------|
-| `check.sh` | one-command entry: tests + 3 analyses + 2 live services |
+| `check.sh` | one-command entry: tests + 4 analyses + 3 live demos |
 | `rulesets/cms/` | the CMS: rules + frozen gate (safety, features) |
 | `rulesets/cms-buggy/` | two planted edits; must FAIL against the frozen gate |
+| `rulesets/cms-import-naive/` | the obvious import extension; must FAIL (5 findings) |
 | `rulesets/tickets/` | a different service on the same engine (generality proof) |
 | `engine/` | generic: conditions (two backends), rule base, store, HTTP server |
-| `analysis/analyze.py` | Z3 gate: dead rules, ∀-safety, ∃-possibility, lifecycle, features |
+| `analysis/analyze.py` | Z3 gate: dead rules, assumptions, ∀-safety, ∃-possibility, lifecycle, features |
 | `live_demo.py` | replay the frozen features over real HTTP + visibility probe |
+| `mock_publishers.py` | the external side: three canned publisher feeds |
+| `importer.py` | the nightly job — an unprivileged HTTP client under the rules |
+| `import_demo.py` | two "nights" end-to-end: import, dedup, containment, editorial finish |
 | `tests/` | unit tests incl. exhaustive runtime↔Z3 agreement |
 
 Research discussion: `research/13-rule-based-cms.md`.

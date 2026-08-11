@@ -1,14 +1,10 @@
-# BUGGY VARIANT of the CMS rule base -- two edits a plausible ticket (or an
-# eager agent) could make, each locally reasonable, both caught by the
-# FROZEN gate in ../cms/ (safety.yaml + features.yaml):
+# NAIVE VARIANT of the nightly-import extension (SYND-9) -- the obvious
+# first draft: the importer syndicates straight to published ("the
+# publisher already reviewed it"), no provenance requirement, no
+# containment, and the authorship assumption was forgotten. Held to the
+# FROZEN gate in ../cms/, every shortcut is a named finding.
 #
-#   1. added `strict_privacy` (LEG-77: "unpublished material must not be
-#      accessible to anyone except the person who wrote it") -- silently
-#      kills editorial review;
-#   2. removed `no_self_decision` ("admins found it annoying") -- silently
-#      breaks separation of duties.
-#
-# Run:  ./check.sh   or   python -m analysis.analyze rulesets/cms-buggy --gate rulesets/cms
+# Run:  python -m analysis.analyze rulesets/cms-import-naive --gate rulesets/cms
 #
 
 entity: article
@@ -27,18 +23,16 @@ lifecycle:
     - {action: publish,   from: in_review, to: published}
     - {action: unpublish, from: published, to: draft}
     - {action: archive,   from: published, to: archived}
+    - {action: syndicate, from: draft,     to: published}
 
 # Environment assumptions: facts the surrounding system guarantees, which
 # the analyzer may rely on. They are part of the reviewable spec — a wrong
 # assumption is a wrong system (see README on the demotion gap).
 assumptions:
   - id: a_authors_are_staff
-    description: "Only creators (authors, editors, admins, and the import
-      pipeline) ever author articles, because only they can create them and
-      authorship never changes. The analyzer cross-checks this against the
-      rules: every role that can be granted `create` must be listed here."
-    holds: 'implies(actor.is_author,
-                    actor.role in ["author", "editor", "admin", "importer"])'
+    description: "Only staff (authors, editors, admins) ever author
+      articles."
+    holds: 'implies(actor.is_author, actor.role in ["author", "editor", "admin"])'
   - id: a_anonymous_is_active
     description: "Anonymous visitors have no account to deactivate."
     holds: 'implies(actor.role == "anonymous", actor.active)'
@@ -50,12 +44,11 @@ rules:
     effect: deny
     when: 'not actor.active'
 
-  - id: strict_privacy
-    description: "LEG-77: unpublished material must not be accessible to
-      anyone except the person who wrote it."
+  - id: no_self_decision
+    description: "Nobody may publish or reject an article they authored
+      themselves — separation of duties, with no exception for admins."
     effect: deny
-    when: 'action == "read" and resource.state != "published"
-           and not actor.is_author'
+    when: 'action in ["publish", "reject"] and actor.is_author'
 
   - id: publish_needs_content
     description: "An article without both a title and a body may not be
@@ -63,22 +56,6 @@ rules:
     effect: deny
     when: 'action == "publish" and not (resource.has_title and resource.has_body)'
 
-  - id: import_needs_provenance
-    description: "SYND-9: every syndicated article must name its source —
-      the import pipeline may not create an article without provenance."
-    effect: deny
-    when: 'actor.role == "importer" and action == "create"
-           and not resource.has_source'
-
-  - id: importer_scope
-    description: "SYND-9: the import pipeline is contained — it may only
-      create articles, submit them for review, and read; a compromised
-      importer must not be able to edit, delete, or decide anything."
-    effect: deny
-    when: 'actor.role == "importer"
-           and action not in ["create", "read", "submit"]'
-
-  # ---- allows ----
   - id: public_read_published
     description: "Anyone, including anonymous visitors, may read a
       published article."
@@ -128,9 +105,9 @@ rules:
     effect: allow
     when: 'actor.role == "admin"'
 
-  - id: importer_create
-    description: "SYND-9: the import pipeline may create articles (they
-      start as drafts like everything else; own_draft then lets it submit
-      them for review — editors still decide)."
+  - id: importer_syndicate
+    description: "SYND-9 (naive draft): the import pipeline creates
+      articles and pushes them straight out — publishers reviewed them
+      already, why review twice?"
     effect: allow
-    when: 'actor.role == "importer" and action == "create"'
+    when: 'actor.role == "importer" and action in ["create", "syndicate"]'

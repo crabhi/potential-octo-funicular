@@ -14,6 +14,7 @@ actors:
   ada:   {role: admin}
   vera:  {role: viewer}
   dana:  {role: author, active: false}
+  imp-bot: {role: importer}
 
 features:
   - id: feat_publish_lifecycle
@@ -66,3 +67,22 @@ features:
          denied_by: default_deny}
       - {actor: alice, action: submit, expect: allow, state_after: in_review}
       - {actor: anonymous, action: read, expect: deny, denied_by: default_deny}
+
+  - id: feat_nightly_import
+    description: "SYND-9 end to end: the import pipeline delivers a sourced
+      article into review; it cannot skip provenance, touch content, or
+      publish; an editor still decides; the public reads."
+    steps:
+      - {actor: imp-bot, action: create, set: {title: "Wire story", body: "…"},
+         expect: deny, denied_by: import_needs_provenance}
+      - {actor: imp-bot, action: create,
+         set: {title: "Wire story", body: "From the wire",
+               source: "daily-bugle#42"},
+         expect: allow, state_after: draft}
+      - {actor: imp-bot, action: edit, set: {body: "tampered"}, expect: deny,
+         denied_by: importer_scope}
+      - {actor: imp-bot, action: submit, expect: allow, state_after: in_review}
+      - {actor: imp-bot, action: publish, expect: deny, denied_by: no_self_decision}
+      - {actor: ed, action: read, expect: allow}
+      - {actor: ed, action: publish, expect: allow, state_after: published}
+      - {actor: anonymous, action: read, expect: allow}
