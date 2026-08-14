@@ -1,0 +1,120 @@
+# The FROZEN gate for Relay, direction 1: what must never / must always
+# happen, quantified over EVERY situation the rules allow; and direction 2:
+# what must remain possible. Each property names its ticket. Agents editing
+# rules.yaml answer to this file pinned (--gate). Note that five of these
+# S-properties protect containments that have NO deny rule — the allows
+# are tight and default-deny does the work; the property proves it stays
+# that way under any future edit.
+
+safety:
+  - id: S1_org_isolation
+    description: "HD-1: customers never act outside their own org."
+    requires: 'implies(actor.role == "customer", resource.same_org)'
+
+  - id: S2_public_locked_out
+    description: "HD-1: the public sees nothing, ever."
+    requires: 'actor.role != "anonymous"'
+
+  - id: S3_inactive_locked
+    description: "Deactivated accounts can do nothing."
+    requires: 'actor.active'
+
+  - id: S4_nothing_deleted
+    description: "HD-6: deletion is not a feature (no deny rule — proven
+      by tight allows + default deny)."
+    requires: 'action != "delete"'
+
+  - id: S5_subject_required
+    description: "HD-2: no case is opened without a subject."
+    requires: 'implies(action == "open", resource.has_subject)'
+
+  - id: S6_staff_states_are_staff_only
+    description: "HD-3: only staff triage, hold, resolve or close."
+    requires: 'implies(action in ["triage", "wait", "resolve", "close"],
+                       actor.role in ["agent", "lead"])'
+
+  - id: S7_resolver_is_assignee_or_lead
+    description: "HD-4: resolution comes from the assignee or a lead."
+    requires: 'implies(action == "resolve",
+                       resource.mine or actor.role == "lead")'
+
+  - id: S8_breach_escalates
+    description: "HD-5: a breached case is resolved by a lead only."
+    requires: 'implies(action == "resolve" and resource.sla_breached,
+                       actor.role == "lead")'
+
+  - id: S9_sealed_after_resolution
+    description: "HD-2/6: resolved and closed cases are not editable."
+    requires: 'implies(resource.state in ["resolved", "closed"],
+                       action != "edit")'
+
+  - id: S10_closed_is_a_record
+    description: "HD-6: a closed case admits reading and nothing else."
+    requires: 'implies(resource.state == "closed", action == "read")'
+
+  - id: S11_only_leads_close
+    description: "HD-6: closing is the QA step, and it is a lead's."
+    requires: 'implies(action == "close", actor.role == "lead")'
+
+  - id: S12_staff_never_reopen
+    description: "HD-4: the requester's side decides — staff and bots
+      never reopen."
+    requires: 'implies(action == "reopen", actor.role == "customer")'
+
+  - id: S13_mailbot_contained
+    description: "HD-7: the robot opens and files replies; a leaked
+      credential can do nothing else."
+    requires: 'implies(actor.role == "mailbot", action in ["open", "reply"])'
+
+possibility:
+  - id: P1_customers_open
+    description: "HD-2: a customer can open a case in their org."
+    witness: 'actor.role == "customer" and action == "open"
+              and resource.same_org and resource.has_subject'
+
+  - id: P2_agents_triage
+    description: "HD-3: an agent can triage a new case."
+    witness: 'actor.role == "agent" and action == "triage"'
+
+  - id: P3_assignee_resolves
+    description: "HD-4: the assigned agent can resolve in time."
+    witness: 'actor.role == "agent" and action == "resolve"
+              and resource.mine and not resource.sla_breached'
+
+  - id: P4_leads_resolve_breaches
+    description: "HD-5: a lead can resolve a breached case — breaches
+      are recoverable, not stuck."
+    witness: 'actor.role == "lead" and action == "resolve"
+              and resource.sla_breached'
+
+  - id: P5_customers_reply
+    description: "HD-3: a customer reply can pull a case off hold."
+    witness: 'actor.role == "customer" and action == "reply"
+              and resource.same_org'
+
+  - id: P6_customers_reopen
+    description: "HD-4: a customer can dispute a resolution."
+    witness: 'actor.role == "customer" and action == "reopen"
+              and resource.same_org'
+
+  - id: P7_leads_close
+    description: "HD-6: the record can actually be sealed."
+    witness: 'actor.role == "lead" and action == "close"'
+
+  - id: P8_mailbot_opens
+    description: "HD-7: the robot can file inbound email."
+    witness: 'actor.role == "mailbot" and action == "open"
+              and resource.has_subject'
+
+  - id: P9_staff_cross_org
+    description: "HD-1: staff serve every org (no org attribute: staff
+      is outside every wall)."
+    witness: 'actor.role == "agent" and action == "read"
+              and not resource.same_org'
+
+# HD-6's structural half: resolved may only ever be reached by resolving,
+# closed only by closing — no future transition may sneak into either.
+lifecycle:
+  only_into:
+    resolved: [resolve]
+    closed: [close]

@@ -1,0 +1,100 @@
+# The FROZEN feature runs for Relay — the liveness half of the gate.
+# Replayed (a) purely by the analyzer on every rule change and (b) over
+# the kernel by the tests. Refusals are expected BY NAME: the denied_by
+# vocabulary is shared from ticket to rule to gate to runtime toast.
+
+clock:
+  today: "2026-08-14"
+
+actors:
+  dana:    {role: customer, org: acme}
+  priya:   {role: customer, org: acme}
+  lex:     {role: customer, org: acme, active: false}
+  omar:    {role: customer, org: zephyr}
+  sam:     {role: agent}
+  quinn:   {role: agent}
+  noor:    {role: lead}
+  postbot: {role: mailbot}
+
+features:
+  - id: feat_lifecycle
+    title: "HD-2/3/6: open -> triage -> hold -> reply -> resolve -> close"
+    steps:
+      - {actor: dana, action: open, expect: allow, state_after: new,
+         set: {subject: "Login broken for SSO users", org: acme,
+               severity: high, sla_due: "2026-08-20"}}
+      - {actor: sam, action: triage, expect: allow, state_after: open}
+      - {actor: sam, action: edit, expect: allow, set: {assignee: sam}}
+      - {actor: sam, action: wait, expect: allow, state_after: waiting}
+      - {actor: dana, action: reply, expect: allow, state_after: open}
+      - {actor: sam, action: resolve, expect: allow, state_after: resolved}
+      - {actor: noor, action: close, expect: allow, state_after: closed}
+      - {actor: dana, action: edit, expect: deny,
+         denied_by: sealed_after_resolution, set: {subject: "edited history"}}
+
+  - id: feat_org_walls
+    title: "HD-1: the org wall in every direction, including edits"
+    steps:
+      - {actor: dana, action: open, expect: allow,
+         set: {subject: "Export CSV garbled", org: acme,
+               severity: low, sla_due: "2026-09-01"}}
+      - {actor: omar, action: read, expect: deny, denied_by: org_walls}
+      - {actor: omar, action: edit, expect: deny, denied_by: org_walls,
+         set: {severity: high}}
+      - {actor: priya, action: read, expect: allow}
+      - {actor: anonymous, action: read, expect: deny, denied_by: default_deny}
+      - {actor: lex, action: read, expect: deny, denied_by: deny_inactive}
+      # the two-phase edit decision: dana may edit, but the case may not
+      # BECOME another org's — the proposed value is decided too
+      - {actor: dana, action: edit, expect: deny, denied_by: org_walls,
+         set: {org: zephyr}}
+      - {actor: sam, action: read, expect: allow}
+
+  - id: feat_who_resolves
+    title: "HD-4: assignee resolves, leads override, customers reopen"
+    steps:
+      - {actor: priya, action: open, expect: allow,
+         set: {subject: "Billing double-charge", org: acme,
+               severity: high, sla_due: "2026-09-10"}}
+      - {actor: sam, action: triage, expect: allow, state_after: open}
+      - {actor: quinn, action: resolve, expect: deny,
+         denied_by: only_assignee_resolves}
+      - {actor: sam, action: edit, expect: allow, set: {assignee: sam}}
+      - {actor: quinn, action: resolve, expect: deny,
+         denied_by: only_assignee_resolves}
+      - {actor: sam, action: resolve, expect: allow, state_after: resolved}
+      - {actor: sam, action: reopen, expect: deny, denied_by: default_deny}
+      - {actor: priya, action: reopen, expect: allow, state_after: open}
+      - {actor: noor, action: resolve, expect: allow, state_after: resolved}
+      - {actor: quinn, action: close, expect: deny, denied_by: default_deny}
+      - {actor: noor, action: close, expect: allow, state_after: closed}
+
+  - id: feat_sla
+    title: "HD-5: the clock turns a routine resolve into an escalation"
+    steps:
+      - {actor: omar, action: open, expect: allow,
+         set: {subject: "API 500s on bulk upload", org: zephyr,
+               severity: high, sla_due: "2026-08-16"}}
+      - {actor: sam, action: triage, expect: allow, state_after: open}
+      - {actor: sam, action: edit, expect: allow, set: {assignee: sam}}
+      - {advance_days: 5}
+      - {actor: sam, action: resolve, expect: deny,
+         denied_by: breach_needs_lead}
+      - {actor: noor, action: resolve, expect: allow, state_after: resolved}
+
+  - id: feat_mailbot
+    title: "HD-7: the robot files mail and can do nothing else"
+    steps:
+      - {actor: postbot, action: open, expect: deny,
+         denied_by: case_needs_subject, set: {org: acme}}
+      - {actor: postbot, action: open, expect: allow, state_after: new,
+         set: {subject: "Fwd: cannot reset password", org: acme,
+               severity: med}}
+      - {actor: postbot, action: triage, expect: deny, denied_by: default_deny}
+      - {actor: postbot, action: edit, expect: deny, denied_by: default_deny,
+         set: {severity: low}}
+      - {actor: postbot, action: delete, expect: deny, denied_by: default_deny}
+      - {actor: sam, action: triage, expect: allow, state_after: open}
+      - {actor: sam, action: wait, expect: allow, state_after: waiting}
+      - {actor: postbot, action: reply, expect: allow, state_after: open}
+      - {actor: dana, action: read, expect: allow}

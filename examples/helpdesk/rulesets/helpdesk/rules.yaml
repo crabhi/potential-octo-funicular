@@ -1,0 +1,141 @@
+# Relay — a customer-support helpdesk, as one rule base.
+# The interaction logic of the whole product: see ../../TICKETS.md for the
+# seven tickets this file translates; every rule names its ticket. Executed
+# and analyzed by the generic engine in ../../../rule-driven-cms/ — the app
+# on top (../../app.py) talks to it only through engine.kernel.
+
+entity: case
+
+roles: [anonymous, customer, agent, lead, mailbot]
+
+states: [new, open, waiting, resolved, closed]
+
+# The situation space is a budget: every boolean doubles it. Only `subject`
+# needs a has_ boolean (HD-2); the rest opt out.
+fields:
+  - subject
+  - {name: org, has: false}
+  - {name: assignee, has: false}
+  - {name: severity, has: false}
+  - {name: sla_due, has: false}
+
+actor_fields: [org]
+
+projections:
+  - {name: mine, kind: actor_matches_field, actor_attr: name, field: assignee}
+  - {name: same_org, kind: actor_matches_field, actor_attr: org, field: org}
+  - {name: sla_breached, kind: date_passed, field: sla_due}
+
+lifecycle:
+  transitions:
+    - {action: open,    from: none,     to: new}
+    - {action: triage,  from: new,      to: open}
+    - {action: wait,    from: open,     to: waiting}
+    - {action: reply,   from: waiting,  to: open}
+    - {action: resolve, from: open,     to: resolved}
+    - {action: reopen,  from: resolved, to: open}
+    - {action: close,   from: resolved, to: closed}
+
+assumptions:
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+
+# Containment note (the note-14 lesson, applied up front this time): there
+# are NO deny rules for "customers never triage", "staff never reopen",
+# "only leads close", "nothing is deleted", "the mailbot does nothing
+# else". The allows below are tight and silence means deny; writing those
+# denies would make them provably DEAD rules. The gate's S-properties
+# (S4, S6, S11, S12, S13) prove each containment universally instead.
+# Cost of that choice: those refusals surface as `default_deny`, not as a
+# named stakeholder sentence — see DEVLOG on this tension.
+
+rules:
+  # ---- denies ----
+  - id: deny_inactive
+    description: "A deactivated account can do nothing at all."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: org_walls
+    description: "HD-1: customers see and touch only their own
+      organization's cases — reading included, and a case can never be
+      moved into or out of an organization by its customers."
+    effect: deny
+    when: 'actor.role == "customer" and not resource.same_org'
+
+  - id: case_needs_subject
+    description: "HD-2: no case without a subject — a subjectless case
+      cannot be triaged, routed or reported on."
+    effect: deny
+    when: 'action == "open" and not resource.has_subject'
+
+  - id: only_assignee_resolves
+    description: "HD-4: a case is resolved by the agent it is assigned
+      to; only a lead may resolve someone else's case."
+    effect: deny
+    when: 'action == "resolve" and not resource.mine and actor.role != "lead"'
+
+  - id: breach_needs_lead
+    description: "HD-5: once the SLA is breached, an ordinary agent may
+      no longer resolve the case — every breach gets senior eyes."
+    effect: deny
+    when: 'action == "resolve" and resource.sla_breached
+           and actor.role != "lead"'
+
+  - id: sealed_after_resolution
+    description: "HD-2 + HD-6: a resolved or closed case is no longer
+      editable, by anyone — reopen it (customers) or live with the
+      record."
+    effect: deny
+    when: 'resource.state in ["resolved", "closed"] and action == "edit"'
+
+  # ---- allows ----
+  - id: customer_opens
+    description: "HD-2: customers open cases (into their own org —
+      org_walls holds them to it)."
+    effect: allow
+    when: 'actor.role == "customer" and action == "open"'
+
+  - id: customer_follows
+    description: "HD-1: everyone in the customer org follows the org's
+      cases."
+    effect: allow
+    when: 'actor.role == "customer" and action == "read"'
+
+  - id: customer_edits
+    description: "HD-2: customers maintain their org's cases while they
+      are being worked (the resolution seal carves out the rest)."
+    effect: allow
+    when: 'actor.role == "customer" and action == "edit"'
+
+  - id: customer_replies
+    description: "HD-3: a customer reply pulls a waiting case back into
+      the working queue."
+    effect: allow
+    when: 'actor.role == "customer" and action == "reply"'
+
+  - id: customer_reopens
+    description: "HD-4: the requester's side decides whether it is
+      fixed — customers reopen resolved cases."
+    effect: allow
+    when: 'actor.role == "customer" and action == "reopen"'
+
+  - id: staff_serve
+    description: "HD-3: staff work every org's cases: read, edit, open
+      (a case taken by phone), triage, put on hold, resolve — with the
+      assignee and SLA denies above carving the sharp edges."
+    effect: allow
+    when: 'actor.role in ["agent", "lead"]
+           and action in ["read", "edit", "open", "triage", "wait", "resolve"]'
+
+  - id: lead_closes
+    description: "HD-6: closing is the QA step, and it is a lead's."
+    effect: allow
+    when: 'actor.role == "lead" and action == "close"'
+
+  - id: mailbot_files
+    description: "HD-7: the mail robot opens cases from inbound email and
+      files customer replies — its entire blast radius."
+    effect: allow
+    when: 'actor.role == "mailbot" and action in ["open", "reply"]'
