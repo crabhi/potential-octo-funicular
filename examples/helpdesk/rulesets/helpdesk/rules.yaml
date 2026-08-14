@@ -36,6 +36,30 @@ lifecycle:
     - {action: reopen,  from: resolved, to: open}
     - {action: close,   from: resolved, to: closed}
 
+# HD-8/9: the thread and the evidence are their own entity types, ruled in
+# the same rule base. Their `context:` imports are the ONLY window onto the
+# parent case — parent.state and parent.same_org enter each child's
+# vocabulary, so "a closed case seals its thread" is a rule, not UI code,
+# and the kernel joins the live case row into every decision.
+children:
+  - entity: comment
+    states: [posted, redacted]
+    fields: [body, internal]        # has_body: HD-8; has_internal: staff-only
+    context: [state, same_org]
+    lifecycle:
+      transitions:
+        - {action: post,   from: none,   to: posted}
+        - {action: redact, from: posted, to: redacted}
+
+  - entity: attachment
+    states: [attached, removed]
+    fields: [filename]
+    context: [state, same_org]
+    lifecycle:
+      transitions:
+        - {action: attach, from: none,     to: attached}
+        - {action: remove, from: attached, to: removed}
+
 assumptions:
   - id: a_anonymous_is_active
     description: "Anonymous visitors have no account to deactivate."
@@ -54,6 +78,7 @@ rules:
   # ---- denies ----
   - id: deny_inactive
     description: "A deactivated account can do nothing at all."
+    entity: [case, comment, attachment]
     effect: deny
     when: 'not actor.active'
 
@@ -139,3 +164,115 @@ rules:
       files customer replies — its entire blast radius."
     effect: allow
     when: 'actor.role == "mailbot" and action in ["open", "reply"]'
+
+  # ==== HD-8/9: the thread and the evidence (child entities) ====
+  # The containment note above holds here too: no "comments are never
+  # edited", "nothing in the thread is deleted", "only leads redact",
+  # "the robot never reads" denies — the allows below are tight, silence
+  # denies, and gate properties S17/S18/S19/S23/S24/S26 prove each
+  # containment universally.
+
+  # ---- denies ----
+  - id: org_walls_thread
+    description: "HD-1 via HD-8/9: the org wall extends to a case's thread
+      and evidence — the PARENT case's org decides, and the kernel joins
+      it in; a customer never touches another org's discussion."
+    entity: [comment, attachment]
+    effect: deny
+    when: 'actor.role == "customer" and not parent.same_org'
+
+  - id: sealed_thread
+    description: "HD-8/9 + HD-6: a closed case seals its thread and its
+      evidence — nothing new is said, redacted, attached or removed; the
+      record stays readable forever."
+    entity: [comment, attachment]
+    effect: deny
+    when: 'parent.state == "closed" and action != "read"'
+
+  - id: comment_needs_body
+    description: "HD-8: a comment needs a body."
+    entity: comment
+    effect: deny
+    when: 'action == "post" and not resource.has_body'
+
+  - id: internal_is_staff_only
+    description: "HD-8: internal notes never reach customers or the robot
+      — not readable, not postable, not anything."
+    entity: comment
+    effect: deny
+    when: 'resource.has_internal and actor.role not in ["agent", "lead"]'
+
+  - id: fresh_evidence_only
+    description: "HD-9: a resolved or closed case takes no new evidence —
+      dispute the resolution first."
+    entity: attachment
+    effect: deny
+    when: 'action == "attach" and parent.state in ["resolved", "closed"]'
+
+  - id: attachment_needs_file
+    description: "HD-9: an attachment needs a filename."
+    entity: attachment
+    effect: deny
+    when: 'action == "attach" and not resource.has_filename'
+
+  # ---- allows ----
+  - id: customer_discusses
+    description: "HD-8: customers read and join their org's case threads
+      (the org wall and the internal-note screen carve the rest)."
+    entity: comment
+    effect: allow
+    when: 'actor.role == "customer" and action in ["read", "post"]'
+
+  - id: staff_discuss
+    description: "HD-8: staff read and join every thread, internal notes
+      included."
+    entity: comment
+    effect: allow
+    when: 'actor.role in ["agent", "lead"] and action in ["read", "post"]'
+
+  - id: lead_redacts
+    description: "HD-8: if something must disappear, a lead redacts it —
+      and the redaction stays on the record."
+    entity: comment
+    effect: allow
+    when: 'actor.role == "lead" and action == "redact"'
+
+  - id: mailbot_files_mail
+    description: "HD-8: the robot files inbound email bodies as comments —
+      it never reads the thread back."
+    entity: comment
+    effect: allow
+    when: 'actor.role == "mailbot" and action == "post"'
+
+  - id: customer_attaches
+    description: "HD-9: customers read and add their org's evidence."
+    entity: attachment
+    effect: allow
+    when: 'actor.role == "customer" and action in ["read", "attach"]'
+
+  - id: staff_attach
+    description: "HD-9: staff read and add evidence on every case."
+    entity: attachment
+    effect: allow
+    when: 'actor.role in ["agent", "lead"] and action in ["read", "attach"]'
+
+  - id: author_removes
+    description: "HD-9: a mistaken upload is removed by the person who
+      attached it (removal keeps the tombstone)."
+    entity: attachment
+    effect: allow
+    when: 'actor.is_author and action == "remove"
+           and actor.role in ["customer", "agent", "lead"]'
+
+  - id: lead_removes
+    description: "HD-9: a lead removes anyone's mistaken upload."
+    entity: attachment
+    effect: allow
+    when: 'actor.role == "lead" and action == "remove"'
+
+  - id: mailbot_attaches
+    description: "HD-9: the robot files email attachments — and never
+      removes or reads anything."
+    entity: attachment
+    effect: allow
+    when: 'actor.role == "mailbot" and action == "attach"'

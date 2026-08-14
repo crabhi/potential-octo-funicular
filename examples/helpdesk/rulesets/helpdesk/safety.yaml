@@ -66,6 +66,104 @@ safety:
       credential can do nothing else."
     requires: 'implies(actor.role == "mailbot", action in ["open", "reply"])'
 
+  # ==== HD-8/9: the thread and the evidence (entity-tagged, like rules).
+  # Each child property quantifies over the child's WHOLE situation space,
+  # parent context included — "for every parent state a rule could see".
+
+  - id: S14_threads_follow_org_walls
+    entity: comment
+    description: "HD-1/8: customers never touch another org's thread."
+    requires: 'implies(actor.role == "customer", parent.same_org)'
+
+  - id: S15_internal_stays_inside
+    entity: comment
+    description: "HD-8: no action on an internal note is ever granted to
+      anyone but staff — reading included."
+    requires: 'implies(resource.has_internal, actor.role in ["agent", "lead"])'
+
+  - id: S16_closed_seals_the_thread
+    entity: comment
+    description: "HD-8/6: on a closed case the thread admits reading and
+      nothing else."
+    requires: 'implies(parent.state == "closed", action == "read")'
+
+  - id: S17_comments_immutable
+    entity: comment
+    description: "HD-8: what was said is what was said — comments are
+      never edited or deleted (no deny rule: tight allows + default
+      deny, proven here)."
+    requires: 'action not in ["edit", "delete"]'
+
+  - id: S18_only_leads_redact
+    entity: comment
+    description: "HD-8: redaction is a lead's call."
+    requires: 'implies(action == "redact", actor.role == "lead")'
+
+  - id: S19_mailbot_writes_only
+    entity: comment
+    description: "HD-7/8: the robot posts email bodies; it never reads
+      the thread back, never redacts, never edits."
+    requires: 'implies(actor.role == "mailbot", action == "post")'
+
+  - id: S20_public_locked_out_of_threads
+    entity: comment
+    description: "HD-1: the public sees no thread, ever."
+    requires: 'actor.role != "anonymous"'
+
+  - id: S21_evidence_follows_org_walls
+    entity: attachment
+    description: "HD-1/9: customers never touch another org's evidence."
+    requires: 'implies(actor.role == "customer", parent.same_org)'
+
+  - id: S22_evidence_only_while_working
+    entity: attachment
+    description: "HD-9: new evidence lands only on a case being worked."
+    requires: 'implies(action == "attach",
+                       parent.state in ["new", "open", "waiting"])'
+
+  - id: S23_attachments_never_deleted
+    entity: attachment
+    description: "HD-6/9: removal is a tombstone; deletion and editing do
+      not exist (no deny rule — proven)."
+    requires: 'action not in ["edit", "delete"]'
+
+  - id: S24_removal_is_author_or_lead
+    entity: attachment
+    description: "HD-9: only the uploader or a lead removes evidence."
+    requires: 'implies(action == "remove",
+                       actor.is_author or actor.role == "lead")'
+
+  - id: S25_closed_seals_the_evidence
+    entity: attachment
+    description: "HD-9/6: on a closed case the evidence admits reading
+      and nothing else."
+    requires: 'implies(parent.state == "closed", action == "read")'
+
+  - id: S26_mailbot_attaches_only
+    entity: attachment
+    description: "HD-7/9: the robot files email attachments and can do
+      nothing else to evidence."
+    requires: 'implies(actor.role == "mailbot", action == "attach")'
+
+  - id: S27_public_locked_out_of_evidence
+    entity: attachment
+    description: "HD-1: the public sees no evidence, ever."
+    requires: 'actor.role != "anonymous"'
+
+  # S3 again, once per child — pinned mechanically because the extension
+  # default (untagged rules apply to the ROOT only) fails OPEN for global
+  # denies: an untagged deny_inactive would have let a deactivated account
+  # post comments, and only these properties would have caught it.
+  - id: S28_inactive_locked_out_of_threads
+    entity: comment
+    description: "Deactivated accounts can do nothing to a thread."
+    requires: 'actor.active'
+
+  - id: S29_inactive_locked_out_of_evidence
+    entity: attachment
+    description: "Deactivated accounts can do nothing to evidence."
+    requires: 'actor.active'
+
 possibility:
   - id: P1_customers_open
     description: "HD-2: a customer can open a case in their org."
@@ -112,9 +210,56 @@ possibility:
     witness: 'actor.role == "agent" and action == "read"
               and not resource.same_org'
 
+  - id: P10_customers_discuss
+    entity: comment
+    description: "HD-8: a customer can post to their org's thread."
+    witness: 'actor.role == "customer" and action == "post"
+              and parent.same_org and resource.has_body'
+
+  - id: P11_staff_note_internally
+    entity: comment
+    description: "HD-8: staff can talk shop inside the thread."
+    witness: 'actor.role == "agent" and action == "post"
+              and resource.has_internal'
+
+  - id: P12_leads_redact
+    entity: comment
+    description: "HD-8: redaction is actually possible."
+    witness: 'actor.role == "lead" and action == "redact"'
+
+  - id: P13_thread_outlives_closure
+    entity: comment
+    description: "HD-8/6: the thread of a CLOSED case is still readable —
+      sealing is not erasure; the thread is the record."
+    witness: 'action == "read" and parent.state == "closed"'
+
+  - id: P14_mailbot_files_bodies
+    entity: comment
+    description: "HD-7/8: the robot can file an email body."
+    witness: 'actor.role == "mailbot" and action == "post"
+              and resource.has_body'
+
+  - id: P15_customers_attach
+    entity: attachment
+    description: "HD-9: a customer can attach evidence to their org's
+      working case."
+    witness: 'actor.role == "customer" and action == "attach"
+              and parent.same_org and resource.has_filename'
+
+  - id: P16_authors_remove
+    entity: attachment
+    description: "HD-9: an ordinary agent can remove their own mistaken
+      upload — no lead required."
+    witness: 'actor.role == "agent" and action == "remove"
+              and actor.is_author'
+
 # HD-6's structural half: resolved may only ever be reached by resolving,
 # closed only by closing — no future transition may sneak into either.
+# Child states get the same treatment: redacted only by redacting,
+# removed only by removing.
 lifecycle:
   only_into:
     resolved: [resolve]
     closed: [close]
+    comment.redacted: [redact]
+    attachment.removed: [remove]

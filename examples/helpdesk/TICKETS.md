@@ -51,3 +51,23 @@ Relay is ever deleted, by anyone.
 Inbound email becomes cases through a robot account. The robot opens
 cases and files customer replies — and can do nothing else. If its
 credential leaks, that is the entire blast radius.
+
+**HD-8 — The case thread.**
+Every case carries a discussion thread. Whoever follows a case can
+comment on it: customers on their org's cases, staff everywhere, and the
+mail robot files inbound email bodies as comments. A comment needs a
+body. Staff can mark a comment *internal* — internal notes never reach
+customers (or the robot), in any way. What was said is what was said:
+comments are never edited; if something must disappear, a lead redacts
+the comment and the redaction itself stays on the record. Closing the
+case seals its thread — nothing new is said, nothing is redacted — but
+the whole thread stays readable forever: the thread IS the record.
+
+**HD-9 — Evidence.**
+Files are attached to a case while it is being worked (new, open or
+waiting): customers on their org's cases, staff everywhere, the robot
+from email. An attachment needs a filename. A resolved or closed case
+takes no new evidence — dispute the resolution first (HD-4). A mistaken
+upload is *removed* by the person who attached it or by a lead — removal
+keeps the tombstone, because nothing in Relay is ever deleted (HD-6) —
+and a closed case seals its attachments exactly like its thread.

@@ -104,6 +104,80 @@ sam during seeding. The rules govern even the fixtures.
    The hour's plumbing time went entirely to presentation, none to policy.
    That is the intended asymmetry.
 
+## Round 2 — the thread and the evidence (multi-entity, 2026-08-14)
+
+The developer's next redirect: *"Rules covering multiple entity types is a
+must. Comments and attachments are context-sensitive."* The engine grew
+`children:` + `context:` (research note 16); Relay grows HD-8 (the case
+thread) and HD-9 (evidence) as child entities of the case, with
+`parent.state` and `parent.same_org` imported into their vocabularies.
+
+Predictions written before the first analyzer run on the extended rule base:
+
+* **P-c: zero dead rules, again.** Same discipline, fourth domain slice:
+  the new containments (comments never edited/deleted, only leads redact,
+  robot never reads the thread, attachments never deleted, removal is
+  author-or-lead) again have NO deny rules — tight allows + default deny,
+  proven by S17/S18/S19/S23/S24/S26. The one overlap that worried me on
+  paper: `fresh_evidence_only` (attach on resolved|closed) vs
+  `sealed_thread` (non-read on closed) — they intersect at attach+closed,
+  but each has territory of its own (attach+resolved; remove/redact+
+  closed), so neither should be dead.
+* **P-d: round-1 PASS**, existing 13 S + 9 P untouched and still green.
+* **P-e: zero engine domain lines** for the second time — `children:`,
+  `context:`, `parent.*` are generic engine vocabulary now; nothing in
+  the engine says comment, attachment, thread or seal.
+* **P-f (friction, predicted):** the pure executor tracks ONE live item
+  per entity, so scenarios that need two comments alive at once ("dana's
+  public comment stays readable next to sam's hidden internal note")
+  cannot be written as one feature — the feature files will show ordering
+  workarounds. Acceptable for a gate; noted as an executor limit.
+
+Real output (recorded after the run):
+
+```
+rules: 33 (16 deny, 17 allow) | roles: 5 | entities: 3 |
+situation space: 37200 (case: 19200, comment: 12000, attachment: 6000)
+   ok: all 33 rules are effectual (each changes at least one decision)
+   ...29/29 safety ok, 16/16 witnesses ok...
+   ok: 11 transitions live, all 9 states reachable, gated entries respected
+   ...75/75 frozen feature steps ok (7 features)...
+VERDICT: PASS (0 findings)
+```
+
+All four predictions held. P-c: neither seal rule is dead — the analyzer
+confirmed each keeps unique territory. P-d: the 13 case S-properties and 9
+case witnesses are byte-identical and still green; the case's 19,200
+situations decide exactly as before (the exhaustive agreement test pins
+this). P-e: `git diff` on the engine for this episode shows the
+multi-entity mechanism only — no Relay vocabulary anywhere in it. P-f: the
+predicted friction is visible in `feat_thread` — dana's internal-note
+read-denial had to be aimed at *the latest* comment (the executor holds
+one live comment), so the feature reads slightly out of story order.
+
+Two things the round taught that were NOT predicted:
+
+* **The witness situations got more interesting for free.** P13's witness
+  is `read, parent.state: closed` — the solver picked a closed case to
+  prove the thread survives closure. The parent-context atom turned a
+  liveness property that used to be unstatable ("readable AFTER the
+  parent moved on") into a one-liner.
+* **`deny_inactive` was the only existing rule touched** — it gained
+  `entity: [case, comment, attachment]`. Without the tag, a deactivated
+  account could have posted comments: *the extension default (rules apply
+  to the root only) fails safe for allows but fails OPEN for global
+  denies.* Worth a lint some day: a deny mentioning only actor.* atoms
+  probably wants every entity. Recorded as falsifier ME-5 in note 16 —
+  and pinned mechanically the same hour: S28/S29 ("deactivated accounts
+  can do nothing to threads/evidence") joined the gate, and the negative
+  direction was verified by temporarily untagging the deny: the analyzer
+  produced counterexamples for both properties plus a feature-step
+  failure, exactly the trap the untagged rule base would have fallen
+  into. (That verification run also cost an honest 10 minutes: restoring
+  the tag with `git checkout` on the not-yet-committed file reverted the
+  whole day's rule edits — re-applied from the session context. Commit
+  before you experiment on yourself.)
+
 ## The scoreboard entry
 
 * Domain vocabulary added to the engine for Relay: **0 lines** — the

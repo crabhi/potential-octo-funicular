@@ -82,6 +82,84 @@ features:
          denied_by: breach_needs_lead}
       - {actor: noor, action: resolve, expect: allow, state_after: resolved}
 
+  - id: feat_thread
+    title: "HD-8: the thread — discussion, internal notes, the org wall,
+      redaction"
+    steps:
+      - {actor: dana, action: open, expect: allow, state_after: new,
+         set: {subject: "Webhook retries duplicated", org: acme,
+               severity: med, sla_due: "2026-09-01"}}
+      - {actor: dana, entity: comment, action: post, expect: deny,
+         denied_by: comment_needs_body}
+      - {actor: dana, entity: comment, action: post, expect: allow,
+         state_after: posted, set: {body: "Happens on every 5xx from us"}}
+      - {actor: omar, entity: comment, action: read, expect: deny,
+         denied_by: org_walls_thread}
+      - {actor: omar, entity: comment, action: post, expect: deny,
+         denied_by: org_walls_thread, set: {body: "same here"}}
+      - {actor: lex, entity: comment, action: read, expect: deny,
+         denied_by: deny_inactive}
+      # a customer cannot smuggle a note into the staff channel...
+      - {actor: dana, entity: comment, action: post, expect: deny,
+         denied_by: internal_is_staff_only,
+         set: {body: "hide this from my boss", internal: "yes"}}
+      # ...and an internal note never reaches a customer, not even to read
+      - {actor: sam, entity: comment, action: post, expect: allow,
+         set: {body: "Root cause: missing idempotency key", internal: "yes"}}
+      - {actor: dana, entity: comment, action: read, expect: deny,
+         denied_by: internal_is_staff_only}
+      - {actor: noor, entity: comment, action: read, expect: allow}
+      - {actor: postbot, entity: comment, action: post, expect: allow,
+         set: {body: "Fwd: still happening after the fix"}}
+      - {actor: postbot, entity: comment, action: read, expect: deny,
+         denied_by: default_deny}
+      - {actor: quinn, entity: comment, action: redact, expect: deny,
+         denied_by: default_deny}
+      - {actor: noor, entity: comment, action: redact, expect: allow,
+         state_after: redacted}
+
+  - id: feat_sealed_evidence
+    title: "HD-9 + HD-6: evidence while working; closing seals thread and
+      evidence; the record survives"
+    steps:
+      - {actor: priya, action: open, expect: allow,
+         set: {subject: "SSO cert expiring", org: acme,
+               severity: high, sla_due: "2026-09-15"}}
+      - {actor: priya, entity: attachment, action: attach, expect: deny,
+         denied_by: attachment_needs_file}
+      - {actor: priya, entity: attachment, action: attach, expect: allow,
+         state_after: attached, set: {filename: "cert_chain.pem"}}
+      - {actor: omar, entity: attachment, action: read, expect: deny,
+         denied_by: org_walls_thread}
+      - {actor: quinn, entity: attachment, action: remove, expect: deny,
+         denied_by: default_deny}
+      - {actor: priya, entity: attachment, action: remove, expect: allow,
+         state_after: removed}
+      - {actor: sam, action: triage, expect: allow, state_after: open}
+      - {actor: sam, action: edit, expect: allow, set: {assignee: sam}}
+      - {actor: sam, entity: attachment, action: attach, expect: allow,
+         state_after: attached, set: {filename: "renewed_cert.pem"}}
+      - {actor: sam, entity: comment, action: post, expect: allow,
+         set: {body: "Renewal scheduled for tonight"}}
+      - {actor: sam, action: resolve, expect: allow, state_after: resolved}
+      # a resolved case still talks (HD-4: the customer may dispute) but
+      # takes no new evidence (HD-9)
+      - {actor: priya, entity: comment, action: post, expect: allow,
+         set: {body: "Confirmed fixed, thanks"}}
+      - {actor: priya, entity: attachment, action: attach, expect: deny,
+         denied_by: fresh_evidence_only, set: {filename: "late_finding.log"}}
+      - {actor: noor, action: close, expect: allow, state_after: closed}
+      # closed seals both children live — same calls, new parent state
+      - {actor: priya, entity: comment, action: post, expect: deny,
+         denied_by: sealed_thread, set: {body: "one more thing"}}
+      - {actor: noor, entity: comment, action: redact, expect: deny,
+         denied_by: sealed_thread}
+      - {actor: noor, entity: attachment, action: remove, expect: deny,
+         denied_by: sealed_thread}
+      # ...and the record is still a record, org-wide
+      - {actor: dana, entity: comment, action: read, expect: allow}
+      - {actor: dana, entity: attachment, action: read, expect: allow}
+
   - id: feat_mailbot
     title: "HD-7: the robot files mail and can do nothing else"
     steps:
