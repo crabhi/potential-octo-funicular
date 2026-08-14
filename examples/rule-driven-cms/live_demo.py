@@ -160,7 +160,8 @@ def main():
                 for item in all_items[plural]:
                     s = rb.situation(actor.role, actor.active,
                                      item["author"] == viewer, "read", item["state"],
-                                     {f: item[f] for f in rb.fields}, today=today)
+                                     {f: item[f] for f in rb.fields}, today=today,
+                                     actor_attrs=features_mod.actor_attrs(actor))
                     if rb.decide(s).effect == "allow":
                         predicted.add(item["id"])
                 _, visible = request(port, "GET", f"/{plural}", viewer)

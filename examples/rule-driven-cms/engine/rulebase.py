@@ -23,6 +23,12 @@ The situation vocabulary is derived from the rule base:
   resource.has_<field> bool per declared field (field is non-empty)
   resource.<name>      bool per declared projection (see below)
 
+Every boolean doubles the situation space, so the vocabulary is a budget.
+A field whose emptiness no rule ever mentions can opt out of its automatic
+`has_` boolean:
+
+  fields: [title, {name: assignee, has: false}]
+
 Projections are how facts the rules need but fields don't directly state
 enter the vocabulary. `has_<field>` is the built-in kind; a rule base may
 declare more, each computed by the engine at request time and treated as a
@@ -30,9 +36,17 @@ free boolean by the analyzer:
 
   projections:
     - {name: is_past_due, kind: date_passed, field: due_date}
+    - {name: same_team,   kind: actor_matches_field, actor_attr: team, field: team}
 
 Kinds: `date_passed` — field holds an ISO date strictly earlier than the
-engine's current date (the clock is engine state: server --today).
+engine's current date (the clock is engine state: server --today);
+`actor_matches_field` — the resource field is non-empty and equal to an
+attribute of the requesting actor (`name`, or one of the rule base's
+declared `actor_fields`). This is how relations between the actor and the
+resource — tenancy, assignment — enter the vocabulary as booleans.
+
+Actor fields (`actor_fields: [team]`) are extra per-user attributes stored
+with the account and referenced by actor_matches_field projections.
 """
 
 import collections
@@ -44,12 +58,13 @@ from . import conditions
 
 CRUD_ACTIONS = ("read", "edit", "delete")
 NO_STATE = "none"
-PROJECTION_KINDS = ("date_passed",)
+PROJECTION_KINDS = ("date_passed", "actor_matches_field")
 
 Transition = collections.namedtuple("Transition", "action source target")
 Rule = collections.namedtuple("Rule", "id description effect when")
 Assumption = collections.namedtuple("Assumption", "id description holds")
-Projection = collections.namedtuple("Projection", "name kind field")
+Projection = collections.namedtuple("Projection", "name kind field actor_attr",
+                                     defaults=(None,))
 
 DEFAULT_DENY = Rule(
     "default_deny", "No rule allows this action; the default is deny.", "deny", None)
@@ -66,11 +81,18 @@ class RuleBase:
             self.entity = doc["entity"]
             self.roles = tuple(doc["roles"])
             self.states = tuple(doc["states"])
-            self.fields = tuple(doc.get("fields", ()))
+            field_specs = [f if isinstance(f, dict) else {"name": f}
+                           for f in doc.get("fields", ())]
+            self.fields = tuple(f["name"] for f in field_specs)
+            self.has_fields = tuple(f["name"] for f in field_specs
+                                    if f.get("has", True))
+            self.actor_fields = tuple(doc.get("actor_fields", ()))
             transitions = doc["lifecycle"]["transitions"]
             rules = doc["rules"]
         except (KeyError, TypeError) as e:
             raise RuleBaseError(f"{name}: missing/invalid section: {e}") from e
+        if set(self.actor_fields) & {"name", "role", "active"}:
+            raise RuleBaseError(f"{name}: actor_fields may not shadow built-ins")
 
         self.transitions = tuple(
             Transition(t["action"], t["from"], t["to"]) for t in transitions)
@@ -97,13 +119,18 @@ class RuleBase:
             raise RuleBaseError(f"{name}: transitions may not reuse {CRUD_ACTIONS}")
 
         self.projections = tuple(
-            Projection(p["name"], p["kind"], p["field"])
+            Projection(p["name"], p["kind"], p["field"], p.get("actor_attr"))
             for p in doc.get("projections", ()))
         for p in self.projections:
             if p.kind not in PROJECTION_KINDS:
                 raise RuleBaseError(f"{name}: projection {p.name}: unknown kind {p.kind!r}")
             if p.field not in self.fields:
                 raise RuleBaseError(f"{name}: projection {p.name}: unknown field {p.field!r}")
+            if p.kind == "actor_matches_field":
+                if p.actor_attr != "name" and p.actor_attr not in self.actor_fields:
+                    raise RuleBaseError(
+                        f"{name}: projection {p.name}: actor_attr {p.actor_attr!r} "
+                        f"is neither 'name' nor a declared actor field")
 
         self.vocabulary = conditions.Vocabulary(
             enums={
@@ -112,7 +139,7 @@ class RuleBase:
                 "resource.state": self.states + (NO_STATE,),
             },
             bools=("actor.active", "actor.is_author")
-            + tuple(f"resource.has_{f}" for f in self.fields)
+            + tuple(f"resource.has_{f}" for f in self.has_fields)
             + tuple(f"resource.{p.name}" for p in self.projections),
         )
 
@@ -176,14 +203,15 @@ class RuleBase:
     # -- situations ------------------------------------------------------------
 
     def situation(self, role, active, is_author, action, state,
-                  field_values=None, today=None):
+                  field_values=None, today=None, actor_attrs=None):
         s = {"actor.role": role, "actor.active": bool(active),
              "actor.is_author": bool(is_author), "action": action,
              "resource.state": state}
-        for f in self.fields:
+        for f in self.has_fields:
             s[f"resource.has_{f}"] = bool((field_values or {}).get(f))
         for p in self.projections:
-            s[f"resource.{p.name}"] = _project(p, (field_values or {}).get(p.field), today)
+            s[f"resource.{p.name}"] = _project(
+                p, (field_values or {}).get(p.field), today, actor_attrs or {})
         return s
 
     def all_situations(self):
@@ -198,11 +226,15 @@ class RuleBase:
                 yield s
 
 
-def _project(projection, value, today):
+def _project(projection, value, today, actor_attrs):
     """Compute a declared projection from a concrete field value. ISO date
-    strings compare correctly as strings, so no parsing is needed."""
+    strings compare correctly as strings, so no parsing is needed. An empty
+    field or empty actor attribute never matches anything."""
     if projection.kind == "date_passed":
         return bool(value) and today is not None and str(value) < str(today)
+    if projection.kind == "actor_matches_field":
+        attr = actor_attrs.get(projection.actor_attr)
+        return bool(value) and bool(attr) and str(value) == str(attr)
     raise AssertionError(projection.kind)
 
 

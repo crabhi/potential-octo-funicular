@@ -66,7 +66,8 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             row = store.get_user(conn, name)
             if row is None:
                 return None
-            return features_mod.Actor(row["name"], row["role"], bool(row["active"]))
+            return features_mod.Actor(row["name"], row["role"], bool(row["active"]),
+                                      {f: row[f] for f in rb.actor_fields})
 
         def item_json(self, row):
             doc = {"id": row["id"], "author": row["author"], "state": row["state"]}
@@ -85,7 +86,8 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             fields = new_fields if row is None else {f: row[f] for f in rb.fields}
             is_author = True if row is None else actor.name == row["author"]
             situation = rb.situation(actor.role, actor.active, is_author,
-                                     action, state, fields, today=clock.get("today"))
+                                     action, state, fields, today=clock.get("today"),
+                                     actor_attrs=features_mod.actor_attrs(actor))
             verdict = rb.decide(situation)
             if verdict.effect == "deny":
                 self.send_json(403, {"error": "forbidden", "denied_by": verdict.id,
@@ -122,7 +124,8 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             situation = rb.situation(actor.role, actor.active,
                                      actor.name == row["author"], action,
                                      row["state"], {f: row[f] for f in rb.fields},
-                                     today=clock.get("today"))
+                                     today=clock.get("today"),
+                                     actor_attrs=features_mod.actor_attrs(actor))
             return rb.decide(situation).effect == "allow"
 
         def do_POST(self):

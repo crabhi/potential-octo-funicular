@@ -139,3 +139,50 @@ def test_multi_source_transition_legality():
     assert RECEIVABLES.lifecycle_legal("settle", "overdue")
     assert not RECEIVABLES.lifecycle_legal("settle", "paid")
     assert RECEIVABLES.transition_for("settle", "overdue").target == "paid"
+
+
+# --- relations (actor fields + actor_matches_field) -------------------------------
+
+MINI = rulebase.RuleBase({
+    "entity": "thing",
+    "roles": ["member", "admin"],
+    "states": ["open"],
+    "fields": ["title", {"name": "team", "has": False},
+               {"name": "assignee", "has": False}],
+    "actor_fields": ["team"],
+    "projections": [
+        {"name": "same_team", "kind": "actor_matches_field",
+         "actor_attr": "team", "field": "team"},
+        {"name": "is_assignee", "kind": "actor_matches_field",
+         "actor_attr": "name", "field": "assignee"},
+    ],
+    "lifecycle": {"transitions": [{"action": "create", "from": "none", "to": "open"}]},
+    "rules": [{"id": "own_team_only", "effect": "deny",
+               "when": 'actor.role == "member" and not resource.same_team'},
+              {"id": "member_all", "effect": "allow",
+               "when": 'actor.role == "member"'}],
+}, name="mini")
+
+
+def test_has_opt_out_trims_the_vocabulary():
+    assert MINI.fields == ("title", "team", "assignee")
+    assert "resource.has_title" in MINI.vocabulary.bools
+    assert "resource.has_team" not in MINI.vocabulary.bools
+    assert "resource.has_assignee" not in MINI.vocabulary.bools
+
+
+def test_actor_matches_field_projection():
+    fields = {"title": "t", "team": "argo", "assignee": "tom"}
+    s = MINI.situation("member", True, False, "read", "open", fields,
+                       actor_attrs={"name": "tom", "team": "argo"})
+    assert s["resource.same_team"] and s["resource.is_assignee"]
+    assert MINI.decide(s).effect == "allow"
+    s = MINI.situation("member", True, False, "read", "open", fields,
+                       actor_attrs={"name": "nadia", "team": "boreal"})
+    assert not s["resource.same_team"] and not s["resource.is_assignee"]
+    assert MINI.decide(s).id == "own_team_only"
+    # empty never matches: a team-less resource belongs to nobody
+    s = MINI.situation("member", True, False, "read", "open",
+                       {"title": "t", "team": "", "assignee": ""},
+                       actor_attrs={"name": "tom", "team": "argo"})
+    assert not s["resource.same_team"] and not s["resource.is_assignee"]

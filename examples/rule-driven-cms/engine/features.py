@@ -16,8 +16,13 @@ import yaml
 
 from . import rulebase as rb_mod
 
-Actor = collections.namedtuple("Actor", "name role active")
-ANONYMOUS = Actor("anonymous", "anonymous", True)
+Actor = collections.namedtuple("Actor", "name role active attrs", defaults=({},))
+ANONYMOUS = Actor("anonymous", "anonymous", True, {})
+
+
+def actor_attrs(actor):
+    """The attribute view of an actor that projections match against."""
+    return {"name": actor.name, **actor.attrs}
 
 StepResult = collections.namedtuple("StepResult", "ok message")
 
@@ -36,7 +41,8 @@ def load(path):
         doc = yaml.safe_load(f)
     actors = {"anonymous": ANONYMOUS}
     for name, spec in (doc.get("actors") or {}).items():
-        actors[name] = Actor(name, spec["role"], spec.get("active", True))
+        attrs = {k: v for k, v in spec.items() if k not in ("role", "active")}
+        actors[name] = Actor(name, spec["role"], spec.get("active", True), attrs)
     return actors, doc.get("features") or [], (doc.get("clock") or {})
 
 
@@ -83,7 +89,8 @@ class PureExecutor:
             return StepResult(False, f"structurally illegal: {action} in state {state}")
 
         situation = rb.situation(actor.role, actor.active, is_author, action,
-                                 state, fields, today=self.today)
+                                 state, fields, today=self.today,
+                                 actor_attrs=actor_attrs(actor))
         verdict = rb.decide(situation)
 
         expect = step["expect"]

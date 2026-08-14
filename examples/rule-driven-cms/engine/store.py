@@ -8,10 +8,11 @@ def open_db(path, rb, seed_actors=None):
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     field_cols = "".join(f", {f} TEXT NOT NULL DEFAULT ''" for f in rb.fields)
+    actor_cols = "".join(f", {f} TEXT NOT NULL DEFAULT ''" for f in rb.actor_fields)
     conn.executescript(f"""
         CREATE TABLE IF NOT EXISTS users (
             name TEXT PRIMARY KEY, role TEXT NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1);
+            active INTEGER NOT NULL DEFAULT 1{actor_cols});
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             author TEXT NOT NULL, state TEXT NOT NULL{field_cols});
@@ -19,8 +20,11 @@ def open_db(path, rb, seed_actors=None):
     for actor in (seed_actors or {}).values():
         if actor.role == "anonymous":
             continue
-        conn.execute("INSERT OR REPLACE INTO users (name, role, active) VALUES (?, ?, ?)",
-                     (actor.name, actor.role, int(actor.active)))
+        cols = ["name", "role", "active"] + list(rb.actor_fields)
+        vals = [actor.name, actor.role, int(actor.active)] \
+            + [str(actor.attrs.get(f, "")) for f in rb.actor_fields]
+        conn.execute(f"INSERT OR REPLACE INTO users ({', '.join(cols)}) "
+                     f"VALUES ({', '.join('?' * len(cols))})", vals)
     conn.commit()
     return conn
 
