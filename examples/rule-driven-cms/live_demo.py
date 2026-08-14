@@ -154,7 +154,8 @@ def main():
             _, all_items = request(port, "GET", f"/{plural}",
                                    next(n for n, a in actors.items() if a.role == "admin"))
             for viewer in ["anonymous"] + [n for n, a in actors.items()
-                                           if a.role in ("editor", "agent", "user")][:1]:
+                                           if a.role not in ("admin", "anonymous")
+                                           and a.active][:1]:
                 actor = actors[viewer]
                 predicted = set()
                 for item in all_items[plural]:

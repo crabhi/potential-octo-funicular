@@ -1,0 +1,109 @@
+# The FROZEN gate for Flowdeck, direction 3: end-to-end scenarios replayed
+# on every rule change (pure decision engine in CI, real HTTP in the live
+# demo). Refusals are expected BY NAME — a missing deny fails a feature.
+
+clock: {today: "2026-08-14"}
+
+actors:
+  mira:  {role: lead,   team: argo}
+  rex:   {role: lead,   team: argo}
+  tom:   {role: member, team: argo}
+  pia:   {role: member, team: argo}
+  nadia: {role: member, team: boreal}
+  kai:   {role: lead,   team: boreal}
+  ada:   {role: admin}
+  dusty: {role: janitor}
+  lex:   {role: member, team: argo, active: false}
+
+features:
+  - id: feat_kanban_flow
+    description: "TB-2/TB-3/TB-4: the whole happy path — create, start,
+      submit, approve — then the record freezes (TB-5)."
+    steps:
+      - {actor: mira, action: create,
+         set: {title: "Ship search v2", estimate: "3d", assignee: tom,
+               team: argo, due_date: "2026-08-20"},
+         expect: allow, state_after: backlog}
+      - {actor: mira, action: delete, expect: deny,
+         denied_by: nothing_is_deleted}
+      - {actor: tom, action: start, expect: allow, state_after: in_progress}
+      - {actor: tom, action: submit, expect: allow, state_after: in_review}
+      - {actor: mira, action: approve, expect: allow, state_after: done}
+      - {actor: tom, action: edit, set: {title: "oops"}, expect: deny,
+         denied_by: history_is_immutable}
+
+  - id: feat_review_integrity
+    description: "TB-4: the assignee cannot approve their own work (even a
+      lead); staff never decides; the content is sealed under review; a
+      send-back reopens work."
+    steps:
+      - {actor: mira, action: create,
+         set: {title: "Billing dunning emails", estimate: "2d",
+               assignee: mira, team: argo, due_date: "2026-09-01"},
+         expect: allow}
+      - {actor: mira, action: start, expect: allow}
+      - {actor: mira, action: submit, expect: allow, state_after: in_review}
+      - {actor: mira, action: edit, set: {estimate: "1d"}, expect: deny,
+         denied_by: review_is_sealed}
+      - {actor: mira, action: approve, expect: deny,
+         denied_by: no_self_approval}
+      - {actor: ada, action: approve, expect: deny,
+         denied_by: only_leads_decide}
+      - {actor: rex, action: send_back, expect: allow, state_after: in_progress}
+      - {actor: mira, action: submit, expect: allow}
+      - {actor: rex, action: approve, expect: allow, state_after: done}
+
+  - id: feat_team_walls
+    description: "TB-1: another team sees nothing and touches nothing; you
+      cannot create into another team's board; staff sees everything."
+    steps:
+      - {actor: tom, action: create,
+         set: {title: "Rotate API keys", estimate: "1d", assignee: tom,
+               team: boreal, due_date: "2026-08-30"},
+         expect: deny, denied_by: team_walls}
+      - {actor: tom, action: create,
+         set: {title: "Rotate API keys", estimate: "1d", assignee: tom,
+               team: argo, due_date: "2026-08-30"},
+         expect: allow, state_after: backlog}
+      - {actor: nadia, action: read, expect: deny, denied_by: team_walls}
+      - {actor: nadia, action: edit, set: {title: "x"}, expect: deny,
+         denied_by: team_walls}
+      - {actor: anonymous, action: read, expect: deny,
+         denied_by: default_deny}
+      - {actor: ada, action: read, expect: allow}
+
+  - id: feat_working_agreement
+    description: "TB-3: no title, no task; no estimate, no start; only the
+      assignee works the task."
+    steps:
+      - {actor: pia, action: create,
+         set: {estimate: "1d", assignee: pia, team: argo},
+         expect: deny, denied_by: task_needs_title}
+      - {actor: pia, action: create,
+         set: {title: "Import CSV of customers", assignee: pia, team: argo},
+         expect: allow, state_after: backlog}
+      - {actor: pia, action: start, expect: deny,
+         denied_by: estimate_before_start}
+      - {actor: pia, action: edit, set: {estimate: "2d"}, expect: allow}
+      - {actor: tom, action: start, expect: deny,
+         denied_by: only_assignee_works}
+      - {actor: pia, action: start, expect: allow, state_after: in_progress}
+
+  - id: feat_janitor
+    description: "TB-6/TB-7: the janitor waits for the calendar, is
+      contained to read+archive; deactivated accounts are locked out."
+    steps:
+      - {actor: mira, action: create,
+         set: {title: "Q3 retro notes", estimate: "1d", assignee: tom,
+               team: argo, due_date: "2026-08-20"},
+         expect: allow}
+      - {actor: tom, action: start, expect: allow}
+      - {actor: dusty, action: edit, set: {title: "pwned"}, expect: deny,
+         denied_by: default_deny}
+      - {actor: tom, action: submit, expect: allow}
+      - {actor: mira, action: approve, expect: allow, state_after: done}
+      - {actor: dusty, action: archive, expect: deny,
+         denied_by: janitor_waits}
+      - {advance_days: 30}
+      - {actor: dusty, action: archive, expect: allow, state_after: archived}
+      - {actor: lex, action: read, expect: deny, denied_by: deny_inactive}

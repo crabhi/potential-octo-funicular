@@ -1,0 +1,157 @@
+# Flowdeck as it actually stood in DEVLOG round 2 — the author's honest
+# first complete draft, preserved so the frozen gate's catch is replayable
+# forever: `analyze rulesets/taskboard-round2 --gate rulesets/taskboard`
+# must FAIL with the two real authorization holes (S2: a task assigned to
+# "anonymous" hands start/submit to the public; S5: admin_oversees quietly
+# grants staff the team's work) plus two order-named denial probes.
+# These are development history, not planted sabotage.
+
+entity: task
+
+roles: [anonymous, member, lead, admin, janitor]
+
+states: [backlog, in_progress, in_review, done, archived]
+
+# The situation space is a budget: every boolean doubles it. Fields whose
+# emptiness no rule mentions opt out of their automatic has_ boolean.
+fields:
+  - title
+  - estimate
+  - {name: assignee, has: false}
+  - {name: team, has: false}
+  - {name: due_date, has: false}
+
+actor_fields: [team]
+
+projections:
+  - {name: assigned_to_me, kind: actor_matches_field, actor_attr: name, field: assignee}
+  - {name: same_team,   kind: actor_matches_field, actor_attr: team, field: team}
+  - {name: is_past_due, kind: date_passed, field: due_date}
+
+lifecycle:
+  transitions:
+    - {action: create,    from: none,        to: backlog}
+    - {action: start,     from: backlog,     to: in_progress}
+    - {action: submit,    from: in_progress, to: in_review}
+    - {action: approve,   from: in_review,   to: done}
+    - {action: send_back, from: in_review,   to: in_progress}
+    - {action: archive,   from: done,        to: archived}
+
+assumptions:
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+
+rules:
+  # ---- denies ----
+  - id: deny_inactive
+    description: "TB-7: a deactivated account can do nothing at all,
+      whatever its role or team."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: team_walls
+    description: "TB-1: members and leads only ever act inside their own
+      team — reading included, creating included (you cannot create a task
+      into another team's board)."
+    effect: deny
+    when: 'actor.role in ["member", "lead"] and not resource.same_team'
+
+  - id: task_needs_title
+    description: "TB-2: tasks are created into the backlog and must have
+      a title."
+    effect: deny
+    when: 'action == "create" and not resource.has_title'
+
+  - id: estimate_before_start
+    description: "TB-3: no work starts without an estimate — planning is
+      not optional."
+    effect: deny
+    when: 'action == "start" and not resource.has_estimate'
+
+  - id: only_leads_decide
+    description: "TB-4: only team leads decide reviews — staff included:
+      admins never approve or send back."
+    effect: deny
+    when: 'action in ["approve", "send_back"] and actor.role != "lead"'
+
+  - id: no_self_approval
+    description: "TB-4: nobody may approve a task they did themselves —
+      not even a lead, not even staff."
+    effect: deny
+    when: 'action == "approve" and resource.assigned_to_me'
+
+  - id: review_is_sealed
+    description: "TB-4: while a task is under review its content is
+      sealed — no edits until the review is decided."
+    effect: deny
+    when: 'resource.state == "in_review" and action == "edit"'
+
+  - id: history_is_immutable
+    description: "TB-5: done and archived tasks are the team's history —
+      read-only forever, except archiving a done task."
+    effect: deny
+    when: 'resource.state in ["done", "archived"]
+           and action not in ["read", "archive"]'
+
+  - id: nothing_is_deleted
+    description: "TB-5: nothing is ever deleted, by anyone. Deletion is
+      not a feature."
+    effect: deny
+    when: 'action == "delete"'
+
+  - id: janitor_scope
+    description: "TB-6: the janitor must not be able to do anything except
+      read and archive — containment for a compromised bot credential."
+    effect: deny
+    when: 'actor.role == "janitor" and action not in ["read", "archive"]'
+
+  - id: janitor_waits
+    description: "TB-6: the janitor never archives a task before its due
+      date has passed. (Humans may: leads archive at any time.)"
+    effect: deny
+    when: 'actor.role == "janitor" and action == "archive"
+           and not resource.is_past_due'
+
+  # ---- allows ----
+  - id: team_create
+    description: "TB-2: team people create tasks (into their own backlog —
+      team_walls holds them to it)."
+    effect: allow
+    when: 'actor.role in ["member", "lead"] and action == "create"'
+
+  - id: team_reads
+    description: "TB-1: a team's board is visible to the whole team."
+    effect: allow
+    when: 'actor.role in ["member", "lead"] and action == "read"'
+
+  - id: team_edits
+    description: "TB-2: team people maintain their tasks (the review seal
+      and the history rules carve out the protected states)."
+    effect: allow
+    when: 'actor.role in ["member", "lead"] and action == "edit"'
+
+  - id: assignee_moves
+    description: "TB-3: only the person a task is assigned to may start it
+      and submit it for review."
+    effect: allow
+    when: 'resource.assigned_to_me and action in ["start", "submit"]'
+
+  - id: lead_decides
+    description: "TB-4 + TB-6: team leads decide reviews and may archive
+      done tasks at any time."
+    effect: allow
+    when: 'actor.role == "lead" and action in ["approve", "send_back", "archive"]'
+
+  - id: janitor_archives
+    description: "TB-6: the janitor reads boards and archives stale done
+      tasks."
+    effect: allow
+    when: 'actor.role == "janitor" and action in ["read", "archive"]'
+
+  - id: admin_oversees
+    description: "TB-1: site staff can see and support everything the
+      denies above do not forbid (notably: staff never decides reviews,
+      never touches history, never deletes)."
+    effect: allow
+    when: 'actor.role == "admin"'

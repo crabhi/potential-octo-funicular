@@ -1,0 +1,108 @@
+# The FROZEN gate for Flowdeck, direction 1: what must never / must always
+# happen, quantified over EVERY situation the rules allow; and direction 2:
+# what must remain possible. Each property names the ticket it protects.
+# Agents editing rules.yaml answer to this file pinned (--gate).
+
+safety:
+  - id: S1_team_isolation
+    description: "TB-1: team people never act outside their own team."
+    requires: 'implies(actor.role in ["member", "lead"], resource.same_team)'
+
+  - id: S2_no_anonymous_access
+    description: "TB-1: the public sees nothing, ever."
+    requires: 'actor.role != "anonymous"'
+
+  - id: S3_titled_tasks
+    description: "TB-2: no task is created without a title."
+    requires: 'implies(action == "create", resource.has_title)'
+
+  - id: S4_estimated_work
+    description: "TB-3: no work starts without an estimate."
+    requires: 'implies(action == "start", resource.has_estimate)'
+
+  - id: S5_assignee_works
+    description: "TB-3: only the assignee starts or submits a task."
+    requires: 'implies(action in ["start", "submit"], resource.assigned_to_me)'
+
+  - id: S6_only_leads_decide
+    description: "TB-4: reviews are decided by team leads only."
+    requires: 'implies(action in ["approve", "send_back"], actor.role == "lead")'
+
+  - id: S7_no_self_approval
+    description: "TB-4: nobody approves their own work."
+    requires: 'implies(action == "approve", not resource.assigned_to_me)'
+
+  - id: S8_review_sealed
+    description: "TB-4: no edits while a task is under review."
+    requires: 'implies(resource.state == "in_review", action != "edit")'
+
+  - id: S9_history_immutable
+    description: "TB-5: done/archived tasks admit only read and archive."
+    requires: 'implies(resource.state in ["done", "archived"],
+                       action in ["read", "archive"])'
+
+  - id: S10_nothing_deleted
+    description: "TB-5: deletion is not a feature."
+    requires: 'action != "delete"'
+
+  - id: S11_janitor_contained
+    description: "TB-6: the janitor can only ever read and archive — the
+      blast radius of a stolen bot credential."
+    requires: 'implies(actor.role == "janitor", action in ["read", "archive"])'
+
+  - id: S12_janitor_calendar
+    description: "TB-6: the janitor never archives before the due date."
+    requires: 'implies(actor.role == "janitor" and action == "archive",
+                       resource.is_past_due)'
+
+  - id: S13_inactive_locked
+    description: "TB-7: deactivated accounts can do nothing."
+    requires: 'actor.active'
+
+possibility:
+  - id: P1_members_create
+    description: "TB-2: a member can create a task."
+    witness: 'actor.role == "member" and action == "create"'
+
+  - id: P2_assignee_starts
+    description: "TB-3: an assigned member with an estimate can start."
+    witness: 'actor.role == "member" and action == "start"
+              and resource.assigned_to_me'
+
+  - id: P3_review_completes
+    description: "TB-4: a lead who is not the assignee can approve —
+      the flow can actually finish."
+    witness: 'actor.role == "lead" and action == "approve"
+              and not resource.assigned_to_me'
+
+  - id: P4_send_back_exists
+    description: "TB-4: a review can be sent back for rework."
+    witness: 'action == "send_back"'
+
+  - id: P5_janitor_archives
+    description: "TB-6: the janitor can archive a stale done task."
+    witness: 'actor.role == "janitor" and action == "archive"
+              and resource.is_past_due'
+
+  - id: P6_leads_archive_anytime
+    description: "TB-6: a lead can archive even before the due date."
+    witness: 'actor.role == "lead" and action == "archive"
+              and not resource.is_past_due'
+
+  - id: P7_staff_oversight
+    description: "TB-1: staff can read another team's task (no team attr:
+      staff is outside every team wall)."
+    witness: 'actor.role == "admin" and action == "read"
+              and not resource.same_team'
+
+  - id: P8_members_maintain
+    description: "TB-2: a member can edit a task."
+    witness: 'actor.role == "member" and action == "edit"'
+
+# TB-2's "done may only ever be reached through an approved review — no
+# shortcuts, ever, including future features": structural jurisdiction
+# over the lifecycle table itself.
+lifecycle:
+  only_into:
+    done: [approve]
+    archived: [archive]
