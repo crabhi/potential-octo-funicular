@@ -75,7 +75,7 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 executable_path="/opt/pw-browsers/chromium")
-            context = browser.new_context(viewport={"width": 1120, "height": 630},
+            context = browser.new_context(viewport={"width": 1200, "height": 675},
                                           device_scale_factor=2)
             page = context.new_page()
             base = f"http://127.0.0.1:{PORT}"
