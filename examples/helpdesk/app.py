@@ -45,12 +45,22 @@ TODAY = "2026-08-14"
 # ---------------------------------------------------------------------------
 # The demo desk, seeded THROUGH the kernel as the real personas: a seed that
 # violates policy cannot exist. (Case 6 is breached, so the seed itself is
-# forced to route its resolution through the lead — try seeding it as sam.)
-# Moves are (actor, action) or (actor, "edit", {updates}).
+# forced to route its resolution through the lead — try seeding it as sam.
+# Likewise every thread below is written BEFORE its case closes: sealed_thread
+# refuses late seed comments exactly as it refuses late real ones.)
+# Moves: (actor, action), (actor, "edit", {updates}),
+#        (actor, "comment", {body[, internal]}), (actor, "attach", {filename}).
 SEED = [
     ("dana", {"subject": "Login broken for SSO users", "org": "acme",
               "severity": "high", "sla_due": "2026-08-20"},
-     [("sam", "triage"), ("sam", "edit", {"assignee": "sam"})]),
+     [("sam", "triage"), ("sam", "edit", {"assignee": "sam"}),
+      ("dana", "comment", {"body": "Affects every SSO user since the 09:00 "
+                                   "deploy — password logins still fine."}),
+      ("dana", "attach", {"filename": "har_trace.har"}),
+      ("sam", "comment", {"body": "Suspect SAML clock skew after last "
+                                  "night's cert rotation.", "internal": "yes"}),
+      ("postbot", "comment", {"body": "Fwd: user report — login loop on "
+                                      "the EU tenant."})]),
     ("priya", {"subject": "Export CSV garbled", "org": "acme",
                "severity": "low", "sla_due": "2026-09-01"}, []),
     ("postbot", {"subject": "Fwd: cannot reset password", "org": "acme",
@@ -58,7 +68,12 @@ SEED = [
     ("dana", {"subject": "Billing double-charge", "org": "acme",
               "severity": "high", "sla_due": "2026-08-25"},
      [("sam", "triage"), ("sam", "edit", {"assignee": "sam"}),
-      ("sam", "wait")]),
+      ("sam", "comment", {"body": "Can you attach the card statement for "
+                                  "the second charge?"}),
+      ("sam", "wait"),
+      ("dana", "attach", {"filename": "statement_march.pdf"}),
+      ("dana", "comment", {"body": "Statement attached — the duplicate is "
+                                   "row 14."})]),
     ("priya", {"subject": "Webhook retries misfire", "org": "acme",
                "severity": "med", "sla_due": "2026-08-30"},
      [("sam", "triage"), ("sam", "edit", {"assignee": "sam"}),
@@ -66,10 +81,16 @@ SEED = [
     ("dana", {"subject": "Onboarding email typo", "org": "acme",
               "severity": "low", "sla_due": "2026-08-01"},
      [("sam", "triage"), ("sam", "edit", {"assignee": "sam"}),
+      ("dana", "attach", {"filename": "welcome_email.png"}),
+      ("noor", "comment", {"body": "Fixed in template v2; closing after "
+                                   "QA.", "internal": "yes"}),
       ("noor", "resolve"), ("noor", "close")]),
     ("omar", {"subject": "API 500s on bulk upload", "org": "zephyr",
               "severity": "high", "sla_due": "2026-08-16"},
-     [("sam", "triage"), ("sam", "edit", {"assignee": "sam"})]),
+     [("sam", "triage"), ("sam", "edit", {"assignee": "sam"}),
+      ("omar", "comment", {"body": "Fails for batches over 1k rows; single "
+                                   "rows are fine."}),
+      ("omar", "attach", {"filename": "bulk_upload_500.log"})]),
     ("omar", {"subject": "SSO metadata rotation", "org": "zephyr",
               "severity": "med", "sla_due": "2026-09-20"}, []),
     ("omar", {"subject": "Sandbox reset requests hang", "org": "zephyr",
@@ -89,6 +110,12 @@ def seed(desk):
             who, what = desk.actor(move[0]), move[1]
             if what == "edit":
                 desk.edit(who, row["id"], move[2])
+            elif what == "comment":
+                desk.create(who, move[2], entity="comment",
+                            parent_id=row["id"])
+            elif what == "attach":
+                desk.create(who, move[2], entity="attachment",
+                            parent_id=row["id"])
             else:
                 desk.act(who, what, row["id"])
     return made
@@ -231,6 +258,39 @@ form.edit button { grid-column: 1 / -1; justify-self: start; font: inherit;
     font-weight: 600; background: #21242E; color: #fff; border: none;
     border-radius: 8px; padding: 7px 16px; cursor: pointer; }
 .hintline { font-size: 12px; color: #9AA0B5; margin-top: 10px; }
+.thread, .evidence { margin-top: 18px; border-top: 1px solid #ECEEF4;
+                     padding-top: 12px; }
+.thread h2, .evidence h2 { font-size: 11.5px; text-transform: uppercase;
+                           letter-spacing: .05em; color: #7A8092;
+                           margin-bottom: 8px; }
+.c { border: 1px solid #ECEEF4; border-radius: 9px; padding: 8px 12px;
+     margin-bottom: 8px; background: #FAFBFD; }
+.c.internal { background: #FFF8E6; border-color: #EAD9A8; }
+.c .who { font-size: 12px; color: #7A8092; margin-bottom: 3px;
+          display: flex; align-items: center; gap: 8px; }
+.c .who b { color: #3A3E52; }
+.tag.int { background: #B96A00; color: #fff; border-radius: 8px;
+           padding: 0 7px; font-size: 10.5px; }
+.tomb { color: #9AA0B5; font-style: italic; }
+.microbtn { margin-left: auto; font: inherit; font-size: 11px;
+            border: 1px solid #D7DAE5; background: #fff; border-radius: 6px;
+            padding: 1px 8px; cursor: pointer; color: #5C6474; }
+.microbtn:hover { background: #F6F5FF; }
+.att { display: flex; gap: 8px; align-items: center; font-size: 13px;
+       padding: 6px 10px; border: 1px solid #ECEEF4; border-radius: 8px;
+       margin-bottom: 6px; background: #FAFBFD; }
+.att .who { color: #7A8092; font-size: 12px; }
+form.say { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+form.say textarea { font: inherit; padding: 7px 10px; border: 1px solid
+                    #D7DAE5; border-radius: 8px; resize: vertical; }
+form.say .row2 { display: flex; align-items: center; gap: 14px; }
+form.say button, form.attach button { font: inherit; font-weight: 600;
+    background: #21242E; color: #fff; border: none; border-radius: 8px;
+    padding: 6px 14px; cursor: pointer; }
+form.attach { display: flex; gap: 8px; margin-top: 8px; }
+form.attach input { flex: 1; font: inherit; padding: 6px 9px;
+                    border: 1px solid #D7DAE5; border-radius: 7px; }
+.chk { font-size: 12px; color: #8A5A00; }
 """
 
 
@@ -398,9 +458,83 @@ def detail_view(desk, actor, row, flash=""):
  <div class="actions">{''.join(allowed)}{mine_btn}</div>
  {locked_html}
  {edit_form}
+ {thread_html(desk, actor, row)}
  <p class="hintline">Buttons are affordances, not permissions: every press —
- including the locked ones — is decided by the rules inside the kernel.</p>
+ including the locked ones — is decided by the rules inside the kernel.
+ The thread and the evidence are child entities of this case: their rules
+ see the case's live state, so closing the case seals them by rule, not
+ by UI code.</p>
 </div>"""
+
+
+def thread_html(desk, actor, row):
+    """HD-8/9 rendered: the thread and the evidence. Every list here is a
+    kernel read decision (an internal note simply isn't in a customer's
+    list), every button an affordance, and both forms are mere suggestions —
+    a forged POST meets the same rules. All of this is presentation:
+    the seal, the walls and the screens live in rulesets/, not here."""
+    comments = desk.visible(actor, entity="comment", parent_id=row["id"])
+    items = []
+    for c in comments:
+        tag = ' <span class="tag int">internal</span>' if c["internal"] else ""
+        body = ('<span class="tomb">✕ redacted by a lead — the tombstone '
+                'stays on the record</span>'
+                if c["state"] == "redacted" else esc(c["body"]))
+        btns = "".join(
+            f'<button class="microbtn" hx-post="/comment/{c["id"]}/act" '
+            f'hx-vals=\'{{"action": "{esc(a)}", "case": "{row["id"]}"}}\' '
+            f'hx-target="#content">{esc(a)}</button>'
+            for a, d in desk.affordances(actor, c, entity="comment") if d.allowed)
+        items.append(f'<div class="c{" internal" if c["internal"] else ""}">'
+                     f'<div class="who"><b>{esc(c["author"])}</b>{tag}{btns}</div>'
+                     f'<div>{body}</div></div>')
+    probe = desk.decide(actor, "post", entity="comment", parent=row,
+                        new_fields={"body": "x", "internal": ""})
+    if probe.allowed:
+        internal_box = ""
+        if actor.role in ("agent", "lead"):  # presentation choice, not policy
+            internal_box = ('<label class="chk"><input type="checkbox" '
+                            'name="internal" value="yes"> internal note '
+                            '(never reaches the customer)</label>')
+        say = (f'<form class="say" hx-post="/case/{row["id"]}/comment" '
+               f'hx-target="#content">'
+               f'<textarea name="body" rows="2" placeholder="Write to the '
+               f'thread…"></textarea><div class="row2"><button>Post</button>'
+               f'{internal_box}</div></form>')
+    else:
+        say = (f'<p class="hintline">🔒 posting is refused right now by '
+               f'<code>{esc(probe.rule.id if probe.rule else "the lifecycle")}'
+               f'</code>.</p>')
+
+    atts = desk.visible(actor, entity="attachment", parent_id=row["id"])
+    files = []
+    for a in atts:
+        gone = a["state"] == "removed"
+        name = (f'<span class="tomb">✕ {esc(a["filename"])} (removed)</span>'
+                if gone else f'📎 <b>{esc(a["filename"])}</b>')
+        btns = "".join(
+            f'<button class="microbtn" hx-post="/attachment/{a["id"]}/act" '
+            f'hx-vals=\'{{"action": "{esc(act)}", "case": "{row["id"]}"}}\' '
+            f'hx-target="#content">{esc(act)}</button>'
+            for act, d in desk.affordances(actor, a, entity="attachment")
+            if d.allowed)
+        files.append(f'<div class="att">{name}'
+                     f'<span class="who">by {esc(a["author"])}</span>{btns}</div>')
+    aprobe = desk.decide(actor, "attach", entity="attachment", parent=row,
+                         new_fields={"filename": "x"})
+    if aprobe.allowed:
+        drop = (f'<form class="attach" hx-post="/case/{row["id"]}/attach" '
+                f'hx-target="#content"><input name="filename" '
+                f'placeholder="filename, e.g. trace.log"><button>Attach'
+                f'</button></form>')
+    else:
+        drop = (f'<p class="hintline">🔒 new evidence is refused right now by '
+                f'<code>{esc(aprobe.rule.id if aprobe.rule else "the lifecycle")}'
+                f'</code>.</p>')
+    return (f'<div class="thread"><h2>Thread ({len(items)})</h2>'
+            f'{"".join(items) or "<p class=hintline>No comments yet.</p>"}{say}</div>'
+            f'<div class="evidence"><h2>Evidence ({len(files)})</h2>'
+            f'{"".join(files) or "<p class=hintline>No files.</p>"}{drop}</div>')
 
 
 def new_view(desk, actor, flash=""):
@@ -429,7 +563,8 @@ subject, or outside your org, is refused by name).</p></div>"""
 
 def make_handler(desk):
     route_case = re.compile(r"^/case/(\d+)$")
-    route_act = re.compile(r"^/case/(\d+)/(act|edit)$")
+    route_act = re.compile(r"^/case/(\d+)/(act|edit|comment|attach)$")
+    route_child = re.compile(r"^/(comment|attachment)/(\d+)/act$")
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -526,12 +661,34 @@ def make_handler(desk):
                 return self.respond(actor, detail_view(
                     desk, actor, row, toast_ok(f"case #{row['id']} opened")))
             m = route_act.match(url.path)
-            if not m:
+            mc = route_child.match(url.path)
+            if not m and not mc:
                 return self.respond(actor, queue_view(desk, actor, "inbox"),
                                     code=404)
-            case_id = int(m.group(1))
+            case_id = int(m.group(1) if m else form.get("case", 0))
             try:
-                if m.group(2) == "edit":
+                if mc:  # a transition on a thread/evidence row (e.g. redact)
+                    entity, child_id = mc.group(1), int(mc.group(2))
+                    action = form.get("action", "")
+                    if action not in desk.rb.entity_of(entity).actions:
+                        return self.respond(actor,
+                                            queue_view(desk, actor, "inbox"),
+                                            code=404)
+                    desk.act(actor, action, child_id, entity=entity)
+                    row = desk.get(actor, case_id)
+                    flash = toast_ok(f"{action} — done")
+                elif m.group(2) == "comment":
+                    desk.create(actor, {"body": form.get("body", ""),
+                                        "internal": form.get("internal", "")},
+                                entity="comment", parent_id=case_id)
+                    row = desk.get(actor, case_id)
+                    flash = toast_ok("posted to the thread")
+                elif m.group(2) == "attach":
+                    desk.create(actor, {"filename": form.get("filename", "")},
+                                entity="attachment", parent_id=case_id)
+                    row = desk.get(actor, case_id)
+                    flash = toast_ok("evidence attached")
+                elif m.group(2) == "edit":
                     row = desk.edit(actor, case_id, form)
                     flash = toast_ok("changes saved")
                 else:

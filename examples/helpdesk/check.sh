@@ -15,7 +15,7 @@ $ENGINE/.venv/bin/pip install -q -r $ENGINE/requirements.txt pytest
 PY=$(cd $ENGINE && pwd)/.venv/bin/python
 RS=$(pwd)/rulesets
 
-echo "==== 1. tests: model agreement (19,200 situations), kernel, app over HTTP ===="
+echo "==== 1. tests: model agreement (37,200 situations, 3 entities), kernel, app over HTTP ===="
 $PY -m pytest tests/ -q
 
 echo

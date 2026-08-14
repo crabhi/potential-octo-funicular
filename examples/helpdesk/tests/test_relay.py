@@ -35,22 +35,31 @@ RB = rulebase.load(RULES / "rules.yaml")
 # --- 1. the model: exhaustive backend agreement --------------------------------
 
 def test_backends_agree_on_every_situation():
-    sym = SymbolTable(RB.vocabulary)
-    conds = [r.when for r in RB.rules] + [a.holds for a in RB.assumptions]
-    compiled = [c.to_z3(sym) for c in conds]
-    n = 0
-    for s in RB.all_situations():
-        subst = []
-        for var, const in sym.consts.items():
-            if var in sym.lits:
-                subst.append((const, sym.lits[var][s[var]]))
-            else:
-                subst.append((const, z3.BoolVal(s[var])))
-        for cond, f in zip(conds, compiled):
-            assert cond.evaluate(s) == z3.is_true(
-                z3.simplify(z3.substitute(f, *subst))), (cond.source, s)
-        n += 1
-    assert n == 19200  # 5 roles x 10 actions x 6 states x 2^6
+    # per entity: the case, the thread, the evidence — every situation each
+    # rule could ever see, including every parent-context combination
+    totals = {}
+    for ent_name, ent in RB.entities.items():
+        sym = SymbolTable(ent.vocabulary)
+        conds = [r.when for r in RB.rules_for(ent_name)] \
+            + [a.holds for a in RB.assumptions_for(ent_name)]
+        compiled = [c.to_z3(sym) for c in conds]
+        n = 0
+        for s in ent.all_situations():
+            subst = []
+            for var, const in sym.consts.items():
+                if var in sym.lits:
+                    subst.append((const, sym.lits[var][s[var]]))
+                else:
+                    subst.append((const, z3.BoolVal(s[var])))
+            for cond, f in zip(conds, compiled):
+                assert cond.evaluate(s) == z3.is_true(
+                    z3.simplify(z3.substitute(f, *subst))), \
+                    (ent_name, cond.source, s)
+            n += 1
+        totals[ent_name] = n
+    assert totals == {"case": 19200,        # 5 roles x 10 acts x 6 states x 2^6
+                      "comment": 12000,     # 5 x 5 x 3 x 5 parent states x 2^5
+                      "attachment": 6000}   # 5 x 5 x 3 x 5 x 2^4
 
 
 # --- 2. the kernel: the verified boundary ---------------------------------------
@@ -136,6 +145,86 @@ def test_affordances_power_the_ui_but_grant_nothing(desk):
     assert acts["wait"].allowed                     # staff may hold it
 
 
+# --- 2b. the kernel joins the parent: threads and evidence ----------------------
+
+def test_internal_notes_do_not_exist_for_customers(desk):
+    dana, sam = desk.actor("dana"), desk.actor("sam")
+    case = by_subject(desk, dana, "Login broken for SSO users")
+    staff_view = desk.visible(sam, entity="comment", parent_id=case["id"])
+    dana_view = desk.visible(dana, entity="comment", parent_id=case["id"])
+    assert len(staff_view) == 3 and len(dana_view) == 2  # the note is gone
+    note = next(c for c in staff_view if c["internal"])
+    with pytest.raises(kernel.Denied) as e:              # not even by id
+        desk.get(dana, note["id"], entity="comment")
+    assert e.value.rule.id == "internal_is_staff_only"
+    with pytest.raises(kernel.Denied) as e:              # nor posted by one
+        desk.create(dana, {"body": "sneak", "internal": "yes"},
+                    entity="comment", parent_id=case["id"])
+    assert e.value.rule.id == "internal_is_staff_only"
+
+
+def test_org_walls_extend_to_children_via_the_parent(desk):
+    omar = desk.actor("omar")
+    dana = desk.actor("dana")
+    case = by_subject(desk, dana, "Login broken for SSO users")
+    assert desk.visible(omar, entity="comment", parent_id=case["id"]) == []
+    with pytest.raises(kernel.Denied) as e:
+        desk.create(omar, {"body": "me too"}, entity="comment",
+                    parent_id=case["id"])
+    assert e.value.rule.id == "org_walls_thread"
+
+
+def test_closing_a_case_seals_thread_and_evidence_live(desk):
+    priya, noor = desk.actor("priya"), desk.actor("noor")
+    case = by_subject(desk, priya, "Webhook retries misfire")  # resolved
+    # a resolved case still talks, but takes no new evidence
+    desk.create(priya, {"body": "confirmed fixed"}, entity="comment",
+                parent_id=case["id"])
+    with pytest.raises(kernel.Denied) as e:
+        desk.create(priya, {"filename": "late.log"}, entity="attachment",
+                    parent_id=case["id"])
+    assert e.value.rule.id == "fresh_evidence_only"
+    # the lead closes it — the SAME calls now meet the seal
+    desk.act(noor, "close", case["id"])
+    with pytest.raises(kernel.Denied) as e:
+        desk.create(priya, {"body": "one more thing"}, entity="comment",
+                    parent_id=case["id"])
+    assert e.value.rule.id == "sealed_thread"
+    thread = desk.visible(priya, entity="comment", parent_id=case["id"])
+    assert len(thread) == 1                       # ...but the record remains
+    with pytest.raises(kernel.Denied) as e:
+        desk.act(noor, "redact", thread[0]["id"], entity="comment")
+    assert e.value.rule.id == "sealed_thread"
+
+
+def test_removal_is_author_or_lead_and_keeps_the_tombstone(desk):
+    dana, quinn, noor = (desk.actor(n) for n in ("dana", "quinn", "noor"))
+    case = by_subject(desk, dana, "Login broken for SSO users")
+    att = desk.visible(dana, entity="attachment", parent_id=case["id"])[0]
+    assert att["author"] == "dana"
+    with pytest.raises(kernel.Denied) as e:       # staff, but not the author
+        desk.act(quinn, "remove", att["id"], entity="attachment")
+    assert e.value.rule.id == "default_deny"
+    gone = desk.act(dana, "remove", att["id"], entity="attachment")
+    assert gone["state"] == "removed"             # a tombstone, not a hole
+    assert desk.get(noor, att["id"], entity="attachment") is not None
+
+
+def test_the_robot_is_contained_on_children_too(desk):
+    postbot, dana = desk.actor("postbot"), desk.actor("dana")
+    case = by_subject(desk, dana, "Login broken for SSO users")
+    thread = desk.visible(dana, entity="comment", parent_id=case["id"])
+    with pytest.raises(kernel.Denied) as e:       # it writes, it never reads
+        desk.get(postbot, thread[0]["id"], entity="comment")
+    assert e.value.rule.id == "default_deny"
+    with pytest.raises(kernel.Denied) as e:
+        desk.act(postbot, "redact", thread[0]["id"], entity="comment")
+    assert e.value.rule.id == "default_deny"
+    row = desk.create(postbot, {"body": "Fwd: more reports"},
+                      entity="comment", parent_id=case["id"])
+    assert row["state"] == "posted"               # filing mail still works
+
+
 # --- 3. the app over HTTP: the UI cannot leak or grant ---------------------------
 
 @pytest.fixture(scope="module")
@@ -199,6 +288,49 @@ def test_forged_requests_hit_the_kernel_not_the_ui(server):
                          body="org=zephyr")
     assert status == 403 and "org_walls" in text
     assert desk.get(desk.actor("dana"), open_case["id"])["org"] == "acme"
+
+
+def test_forged_child_requests_hit_the_kernel_too(server):
+    port, desk = server
+    dana = desk.actor("dana")
+    case = by_subject(desk, dana, "Login broken for SSO users")
+    # the UI shows dana no internal checkbox — forge the field anyway
+    status, text = fetch(port, "POST", f"/case/{case['id']}/comment", "dana",
+                         body="body=sneaky&internal=yes")
+    assert status == 403 and "internal_is_staff_only" in text
+    # the internal note in the seed never reaches dana's rendered thread
+    _, page = fetch(port, "GET", f"/case/{case['id']}", "dana")
+    assert "SAML clock skew" not in page
+    _, staff_page = fetch(port, "GET", f"/case/{case['id']}", "sam")
+    assert "SAML clock skew" in staff_page
+    # the robot forges a redact for a button it was never shown
+    thread = desk.visible(desk.actor("sam"), entity="comment",
+                          parent_id=case["id"])
+    status, text = fetch(port, "POST", f"/comment/{thread[0]['id']}/act",
+                         "postbot", body=f"action=redact&case={case['id']}")
+    assert status == 403 and "default_deny" in text
+    # posting into the seed's CLOSED case: sealed by the parent's state
+    closed = by_subject(desk, dana, "Onboarding email typo")
+    status, text = fetch(port, "POST", f"/case/{closed['id']}/comment", "dana",
+                         body="body=too+late")
+    assert status == 403 and "sealed_thread" in text
+    status, text = fetch(port, "POST", f"/case/{closed['id']}/attach", "dana",
+                         body="filename=late.log")
+    assert status == 403 and "sealed_thread" in text
+    # ...while the closed case's thread and evidence render read-only
+    _, record = fetch(port, "GET", f"/case/{closed['id']}", "dana")
+    assert "welcome_email.png" in record
+    assert "sealed_thread" in record        # both forms replaced by the rule
+
+
+def test_allowed_thread_flow_over_http(server):
+    port, desk = server
+    dana = desk.actor("dana")
+    case = by_subject(desk, dana, "Billing double-charge")
+    status, text = fetch(port, "POST", f"/case/{case['id']}/comment", "dana",
+                         body="body=Any+update+on+the+refund%3F")
+    assert status == 200 and "posted to the thread" in text
+    assert "Any update on the refund?" in text
 
 
 def test_allowed_flow_works_end_to_end(server):

@@ -85,6 +85,26 @@ def main():
             page.wait_for_selector(".toast.deny")
             shot("relay-denied-toast.png")
 
+            # 6. the thread as staff: internal note visible, evidence,
+            #    comment box with the internal toggle (HD-8/9)
+            as_user(context, "sam")
+            page.goto(f"{base}/case/1")
+            page.locator(".thread").scroll_into_view_if_needed()
+            shot("relay-sam-thread.png")
+
+            # 7. the same case as the customer: the internal note simply
+            #    does not exist — the list IS the read rule
+            as_user(context, "dana")
+            page.goto(f"{base}/case/1")
+            page.locator(".thread").scroll_into_view_if_needed()
+            shot("relay-dana-thread.png")
+
+            # 8. the closed case: thread + evidence readable forever, both
+            #    forms replaced by the sealing rule's name
+            page.goto(f"{base}/case/6")
+            page.locator(".evidence").scroll_into_view_if_needed()
+            shot("relay-sealed-record.png")
+
             browser.close()
     finally:
         proc.terminate()
