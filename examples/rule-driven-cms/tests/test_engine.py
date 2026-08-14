@@ -171,6 +171,67 @@ def test_has_opt_out_trims_the_vocabulary():
     assert "resource.has_assignee" not in MINI.vocabulary.bools
 
 
+
+# --- the kernel: the verified boundary as a function-level API --------------------
+
+from engine import kernel as kernel_mod  # noqa: E402
+from engine import store as store_mod  # noqa: E402
+
+
+def make_kernel():
+    actors = {
+        "tom": features.Actor("tom", "member", True, {"team": "argo"}),
+        "nadia": features.Actor("nadia", "member", True, {"team": "boreal"}),
+    }
+    conn = store_mod.open_db(":memory:", MINI, actors)
+    return kernel_mod.Kernel(MINI, conn), actors
+
+
+def test_kernel_decides_before_it_touches_state():
+    k, a = make_kernel()
+    row = k.create(a["tom"], {"title": "t", "team": "argo", "assignee": "tom"})
+    assert row["state"] == "open"
+    # reads are decided: the other team's member gets a typed, named refusal
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.get(a["nadia"], row["id"])
+    assert e.value.rule.id == "own_team_only"
+    assert [r["id"] for r in k.visible(a["tom"])] == [row["id"]]
+    assert k.visible(a["nadia"]) == []
+    # create is decided on the proposed fields, before anything exists
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.create(a["nadia"], {"title": "t", "team": "argo"})
+    assert e.value.rule.id == "own_team_only"
+
+
+def test_kernel_edit_decides_what_the_row_would_become():
+    k, a = make_kernel()
+    row = k.create(a["tom"], {"title": "t", "team": "argo"})
+    # tom may edit the row — but the row may not BECOME another team's:
+    # the second decision closes the "edit is blind to values" gap
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.edit(a["tom"], row["id"], {"team": "boreal"})
+    assert e.value.rule.id == "own_team_only"
+    assert k.get(a["tom"], row["id"])["team"] == "argo"  # nothing was written
+    row = k.edit(a["tom"], row["id"], {"title": "renamed"})
+    assert row["title"] == "renamed"
+
+
+def test_kernel_affordances_and_default_deny():
+    k, a = make_kernel()
+    row = k.create(a["tom"], {"title": "t", "team": "argo"})
+    ghost = features.Actor("ada", "admin", True, {"team": ""})
+    d = k.decide(ghost, "read", row)
+    assert not d.allowed and d.rule.id == "default_deny"
+    acts = dict(k.affordances(a["nadia"], row))
+    assert all(not d.allowed for d in acts.values())
+    assert {d.rule.id for d in acts.values()} == {"own_team_only"}
+
+
+def test_kernel_hides_its_connection():
+    k, _ = make_kernel()
+    assert not hasattr(k, "conn") and not hasattr(k, "_conn")
+
+
 def test_actor_matches_field_projection():
     fields = {"title": "t", "team": "argo", "assignee": "tom"}
     s = MINI.situation("member", True, False, "read", "open", fields,

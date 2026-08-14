@@ -20,6 +20,12 @@ Everything on screen is derived: columns from `states`, forms from
 `fields`, buttons from `lifecycle` + the decision function, banners from
 rule ids and their stakeholder descriptions. There is no template to edit
 per app — a different rules.yaml is a different application.
+
+Position (guardrail 10): this reflected UI is SCAFFOLDING — a diagnostic
+view of the rule base, useful while developing rules and for demos. It is
+not the product surface: real apps hand-write their UX as free clients of
+engine.kernel (see examples/helpdesk). Like every adapter, this one goes
+through the kernel and enforces nothing itself.
 """
 
 import html
@@ -27,10 +33,9 @@ import re
 import urllib.parse
 from http import cookies as cookies_mod
 
-from . import features as features_mod
 from . import rulebase as rb_mod
 from . import server as server_mod
-from . import store
+from .kernel import Denied, Illegal
 
 PALETTE = ["#5B7DB1", "#C08A3E", "#7E57A5", "#3A7D44", "#B4552D",
            "#1F6F6B", "#8A5A83", "#5C6B7E"]
@@ -126,6 +131,7 @@ table.lc th { background: #F4F6F8; color: #47566A; font-size: 12px; }
 def make_handler(rb, conn, clock=None, mutable_clock=False):
     clock = clock if clock is not None else {}
     Base = server_mod.make_handler(rb, conn, clock, mutable_clock)
+    kernel = Base.kernel  # the one shared enforcement boundary
     plural = rb.entity + "s"
     route_item = re.compile(r"^/ui/items/(\d+)$")
     route_act = re.compile(r"^/ui/items/(\d+)/(act|edit)$")
@@ -148,13 +154,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
         def persona(self):
             cookie = cookies_mod.SimpleCookie(self.headers.get("Cookie") or "")
             name = cookie["persona"].value if "persona" in cookie else ""
-            if name:
-                row = store.get_user(conn, name)
-                if row is not None:
-                    return features_mod.Actor(
-                        row["name"], row["role"], bool(row["active"]),
-                        {f: row[f] for f in rb.actor_fields})
-            return features_mod.ANONYMOUS
+            return kernel.actor(name) or kernel.actor(None)
 
         def send_html(self, body, extra_headers=()):
             data = body.encode()
@@ -184,11 +184,11 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             attrs = " · ".join(f"{esc(v)}" for v in actor.attrs.values() if v)
             persona_desc = f"{who} — {esc(actor.role)}" + (f" · {attrs}" if attrs else "")
             options = ['<option value="">anonymous</option>']
-            for u in store.list_users(conn):
-                sel = " selected" if u["name"] == actor.name else ""
-                extra = " ".join(esc(u[f]) for f in rb.actor_fields if u[f])
-                options.append(f'<option value="{esc(u["name"])}"{sel}>'
-                               f'{esc(u["name"])} ({esc(u["role"])}'
+            for u in kernel.users():
+                sel = " selected" if u.name == actor.name else ""
+                extra = " ".join(esc(v) for v in u.attrs.values() if v)
+                options.append(f'<option value="{esc(u.name)}"{sel}>'
+                               f'{esc(u.name)} ({esc(u.role)}'
                                f'{" · " + extra if extra else ""})</option>')
             return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>{esc(rb.entity)} board</title><style>{CSS}</style></head><body>
@@ -220,21 +220,10 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                         f'</code> succeeded</div>')
             return ""
 
-        def decide(self, actor, action, row, new_fields=None):
-            return server_mod.evaluate(rb, actor, action, row,
-                                       clock.get("today"), new_fields)
-
         def item_actions(self, actor, row):
-            """Every structurally-legal action on this item, with its verdict."""
-            acts = []
-            for action in rb.actions:
-                if not rb.lifecycle_legal(action, row["state"]):
-                    continue
-                if action == "read":
-                    continue
-                _, verdict, _ = self.decide(actor, action, row)
-                acts.append((action, verdict))
-            return acts
+            """Every structurally-legal action on this item, with its
+            Decision — straight from the kernel's affordances API."""
+            return kernel.affordances(actor, row)
 
         # -- views --------------------------------------------------------------
         def card_html(self, actor, row):
@@ -245,8 +234,8 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                 if row[f]:
                     meta.append(f"{pretty(f)}: {esc(row[f])}")
             chips = []
-            for action, verdict in self.item_actions(actor, row):
-                if verdict.effect == "allow":
+            for action, d in self.item_actions(actor, row):
+                if d.allowed:
                     chips.append(
                         f'<form method="post" action="/ui/items/{row["id"]}/act" '
                         f'style="display:inline"><input type="hidden" name="action" '
@@ -260,9 +249,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                     + '</div>')
 
         def board(self, actor):
-            visible = [r for r in store.list_items(conn)
-                       if (lambda v: v is not None and v.effect == "allow")(
-                           self.decide(actor, "read", r)[1])]
+            visible = kernel.visible(actor)
             cols = []
             for s in rb.states:
                 rows = [r for r in visible if r["state"] == s]
@@ -282,33 +269,33 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             for f in rb.fields:
                 dl.append(f"<dt>{pretty(f)}</dt><dd>{esc(row[f]) or '—'}</dd>")
             buttons = []
-            for action, verdict in self.item_actions(actor, row):
+            for action, d in self.item_actions(actor, row):
                 if action == "edit":
                     continue  # the form below is the edit surface
-                if verdict.effect == "allow":
+                if d.allowed:
                     buttons.append(
                         f'<form method="post" action="/ui/items/{row["id"]}/act" '
                         f'style="display:inline"><input type="hidden" name="action" '
                         f'value="{esc(action)}"><button class="act go">'
                         f'{pretty(action)}</button></form>')
                 else:
-                    tip = f"refused by {verdict.id}: {verdict.description}"
+                    tip = f"refused by {d.rule.id}: {d.rule.description}"
                     buttons.append(
                         f'<form method="post" action="/ui/items/{row["id"]}/act" '
                         f'style="display:inline"><input type="hidden" name="action" '
                         f'value="{esc(action)}"><button class="act no" '
                         f'title="{esc(tip)}"><span class="lock">🔒</span> '
-                        f'{pretty(action)} <span class="lock">({esc(verdict.id)})'
+                        f'{pretty(action)} <span class="lock">({esc(d.rule.id)})'
                         f'</span></button></form>')
             inputs = []
             for f in rb.fields:
                 typ = "date" if "date" in f else "text"
                 inputs.append(f'<label>{pretty(f)}<input name="{esc(f)}" type="{typ}" '
                               f'value="{esc(row[f])}"></label>')
-            _, edit_verdict, _ = self.decide(actor, "edit", row)
+            d_edit = kernel.decide(actor, "edit", row)
             edit_hint = ""
-            if edit_verdict is None or edit_verdict.effect == "deny":
-                rid = edit_verdict.id if edit_verdict else "the lifecycle"
+            if not d_edit.allowed:
+                rid = d_edit.rule.id if d_edit.rule else "the lifecycle"
                 edit_hint = (f'<p class="hint">🔒 editing is refused right now '
                              f'by <b>{esc(rid)}</b> — saving will show the '
                              f'refusal.</p>')
@@ -394,13 +381,13 @@ reflects the decision function, it never enforces.</p>
                 return self.send_html(self.rules_page(actor))
             m = route_item.match(path)
             if m:
-                row = store.get_item(conn, int(m.group(1)))
+                try:
+                    row = kernel.get(actor, m.group(1))
+                except Denied as e:
+                    return self.redirect(
+                        f"/ui?denied={urllib.parse.quote(e.rule.id)}")
                 if row is None:
                     return self.redirect("/ui")
-                _, verdict, _ = self.decide(actor, "read", row)
-                if verdict is None or verdict.effect == "deny":
-                    rid = verdict.id if verdict else "default_deny"
-                    return self.redirect(f"/ui?denied={urllib.parse.quote(rid)}")
                 return self.send_html(self.detail(actor, row))
             return self.redirect("/ui")
 
@@ -414,42 +401,38 @@ reflects the decision function, it never enforces.</p>
             actor = self.persona()
             if path == "/ui/new":
                 t = rb.creating_transition()
-                fields = {f: str(form.get(f, "")) for f in rb.fields}
-                status, verdict, _ = self.decide(actor, t.action, None, fields)
-                if verdict is not None and verdict.effect == "allow":
-                    item_id = store.create_item(conn, rb, actor.name, t.target, fields)
-                    return self.redirect(f"/ui/items/{item_id}?ok={t.action}")
-                rid = verdict.id if verdict else t.action
-                return self.redirect(f"/ui/new?denied={urllib.parse.quote(rid)}")
+                try:
+                    row = kernel.create(actor, form)
+                except Denied as e:
+                    return self.redirect(
+                        f"/ui/new?denied={urllib.parse.quote(e.rule.id)}")
+                except Illegal:
+                    return self.redirect(
+                        f"/ui/new?illegal={urllib.parse.quote(t.action)}")
+                return self.redirect(f"/ui/items/{row['id']}?ok={t.action}")
             m = route_act.match(path)
             if not m:
                 return self.redirect("/ui")
-            row = store.get_item(conn, int(m.group(1)))
-            if row is None:
-                return self.redirect("/ui")
-            back = f"/ui/items/{row['id']}"
-            if m.group(2) == "edit":
-                status, verdict, _ = self.decide(actor, "edit", row)
-                if verdict is not None and verdict.effect == "allow":
-                    store.update_item(conn, rb, row["id"],
-                                      {f: str(v) for f, v in form.items()
-                                       if f in rb.fields})
-                    return self.redirect(f"{back}?ok=edit")
-                rid = verdict.id if verdict else "edit"
-                return self.redirect(f"{back}?denied={urllib.parse.quote(rid)}")
-            action = form.get("action", "")
+            item_id = int(m.group(1))
+            back = f"/ui/items/{item_id}"
+            action = "edit" if m.group(2) == "edit" else form.get("action", "")
             if action not in rb.actions:
                 return self.redirect(back)
-            status, verdict, _ = self.decide(actor, action, row)
-            if status == "illegal":
+            try:
+                if action == "edit":
+                    kernel.edit(actor, item_id, form)
+                elif action == "delete":
+                    kernel.delete(actor, item_id)
+                    return self.redirect("/ui?ok=delete")
+                else:
+                    kernel.act(actor, action, item_id)
+            except KeyError:
+                return self.redirect("/ui")
+            except Denied as e:
+                return self.redirect(
+                    f"{back}?denied={urllib.parse.quote(e.rule.id)}")
+            except Illegal:
                 return self.redirect(f"{back}?illegal={urllib.parse.quote(action)}")
-            if verdict.effect == "deny":
-                return self.redirect(f"{back}?denied={urllib.parse.quote(verdict.id)}")
-            if action == "delete":
-                store.delete_item(conn, row["id"])
-                return self.redirect("/ui?ok=delete")
-            target = rb.transition_for(action, row["state"]).target
-            store.update_item(conn, rb, row["id"], {"state": target})
             return self.redirect(f"{back}?ok={urllib.parse.quote(action)}")
 
     return Handler

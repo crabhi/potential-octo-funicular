@@ -92,6 +92,17 @@ class PureExecutor:
                                  state, fields, today=self.today,
                                  actor_attrs=actor_attrs(actor))
         verdict = rb.decide(situation)
+        if verdict.effect == "allow" and action == "edit":
+            # edits are decided twice, here and in the kernel alike: on the
+            # current row AND on the row as it would become — a proposed
+            # value may not put the resource somewhere the rules refuse
+            after = dict(fields)
+            for f, v in (step.get("set") or {}).items():
+                if f in rb.fields:
+                    after[f] = v
+            verdict = rb.decide(rb.situation(
+                actor.role, actor.active, is_author, action, state, after,
+                today=self.today, actor_attrs=actor_attrs(actor)))
 
         expect = step["expect"]
         got = "allow" if verdict.effect == "allow" else "deny"
