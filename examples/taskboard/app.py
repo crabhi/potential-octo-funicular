@@ -47,6 +47,9 @@ SEED = [
     ("mira", {"title": "Billing dunning emails", "estimate": "2d",
               "assignee": "mira", "team": "argo", "due_date": "2026-09-01"},
      [("mira", "start"), ("mira", "submit"), ("rex", "approve")]),  # done
+    ("mira", {"title": "Sprint 34 goals", "estimate": "1d",
+              "assignee": "mira", "team": "argo", "due_date": "2026-08-18"},
+     [("mira", "start"), ("mira", "submit")]),   # in review, assigned to a lead
     ("mira", {"title": "Q2 retro notes", "estimate": "1d", "assignee": "tom",
               "team": "argo", "due_date": "2026-07-31"},
      [("tom", "start"), ("tom", "submit"), ("mira", "approve"),

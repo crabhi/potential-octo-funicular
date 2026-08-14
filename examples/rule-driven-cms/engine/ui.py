@@ -137,6 +137,11 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
     def esc(v):
         return html.escape(str(v), quote=True)
 
+    def pretty(v):
+        """Display form of states/fields/actions. Rule ids and condition
+        sources are NEVER prettified — they are the shared vocabulary."""
+        return html.escape(str(v).replace("_", " "), quote=True)
+
     class Handler(Base):
 
         # -- plumbing ---------------------------------------------------------
@@ -238,7 +243,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             meta = [f"#{row['id']} · {esc(row['author'])}"]
             for f in rb.fields[1:]:
                 if row[f]:
-                    meta.append(f"{esc(f)}: {esc(row[f])}")
+                    meta.append(f"{pretty(f)}: {esc(row[f])}")
             chips = []
             for action, verdict in self.item_actions(actor, row):
                 if verdict.effect == "allow":
@@ -246,7 +251,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                         f'<form method="post" action="/ui/items/{row["id"]}/act" '
                         f'style="display:inline"><input type="hidden" name="action" '
                         f'value="{esc(action)}"><button class="chip go">'
-                        f'{esc(action)}</button></form>')
+                        f'{pretty(action)}</button></form>')
             color = state_color.get(row["state"], "#5C6B7E")
             return (f'<div class="card" style="border-top-color:{color}">'
                     f'<div class="t"><a href="/ui/items/{row["id"]}">{title}</a></div>'
@@ -264,7 +269,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                 cards = "".join(self.card_html(actor, r) for r in rows)
                 cols.append(
                     f'<div class="col"><h2><span class="dot" style="background:'
-                    f'{state_color[s]}"></span>{esc(s)}<span class="n">'
+                    f'{state_color[s]}"></span>{pretty(s)}<span class="n">'
                     f'{len(rows)}</span></h2>{cards}</div>')
             return self.page(actor, f'<div class="board">{"".join(cols)}</div>',
                              self.banner_html())
@@ -275,7 +280,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
             color = state_color.get(row["state"], "#5C6B7E")
             dl = [f"<dt>author</dt><dd>{esc(row['author'])}</dd>"]
             for f in rb.fields:
-                dl.append(f"<dt>{esc(f)}</dt><dd>{esc(row[f]) or '—'}</dd>")
+                dl.append(f"<dt>{pretty(f)}</dt><dd>{esc(row[f]) or '—'}</dd>")
             buttons = []
             for action, verdict in self.item_actions(actor, row):
                 if action == "edit":
@@ -285,7 +290,7 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                         f'<form method="post" action="/ui/items/{row["id"]}/act" '
                         f'style="display:inline"><input type="hidden" name="action" '
                         f'value="{esc(action)}"><button class="act go">'
-                        f'{esc(action)}</button></form>')
+                        f'{pretty(action)}</button></form>')
                 else:
                     tip = f"refused by {verdict.id}: {verdict.description}"
                     buttons.append(
@@ -293,22 +298,29 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                         f'style="display:inline"><input type="hidden" name="action" '
                         f'value="{esc(action)}"><button class="act no" '
                         f'title="{esc(tip)}"><span class="lock">🔒</span> '
-                        f'{esc(action)} <span class="lock">({esc(verdict.id)})'
+                        f'{pretty(action)} <span class="lock">({esc(verdict.id)})'
                         f'</span></button></form>')
             inputs = []
             for f in rb.fields:
                 typ = "date" if "date" in f else "text"
-                inputs.append(f'<label>{esc(f)}<input name="{esc(f)}" type="{typ}" '
+                inputs.append(f'<label>{pretty(f)}<input name="{esc(f)}" type="{typ}" '
                               f'value="{esc(row[f])}"></label>')
+            _, edit_verdict, _ = self.decide(actor, "edit", row)
+            edit_hint = ""
+            if edit_verdict is None or edit_verdict.effect == "deny":
+                rid = edit_verdict.id if edit_verdict else "the lifecycle"
+                edit_hint = (f'<p class="hint">🔒 editing is refused right now '
+                             f'by <b>{esc(rid)}</b> — saving will show the '
+                             f'refusal.</p>')
             content = f"""<div class="detail">
 <h1>{title}</h1>
-<span class="state-badge" style="background:{color}">{esc(row['state'])}</span>
+<span class="state-badge" style="background:{color}">{pretty(row['state'])}</span>
 <dl>{''.join(dl)}</dl>
 <div class="acts-row">{''.join(buttons)}</div>
 <p class="hint">Greyed actions name the rule that refuses them — same
 vocabulary as the analyzer and the 403s. They stay clickable: the UI only
 reflects the decision function, it never enforces.</p>
-<form class="fields" method="post" action="/ui/items/{row['id']}/edit">
+{edit_hint}<form class="fields" method="post" action="/ui/items/{row['id']}/edit">
 {''.join(inputs)}<button class="act go" style="justify-self:start">save edits</button>
 </form>
 <p style="margin-top:12px"><a href="/ui">← back to board</a></p></div>"""
@@ -319,11 +331,11 @@ reflects the decision function, it never enforces.</p>
             inputs = []
             for f in rb.fields:
                 typ = "date" if "date" in f else "text"
-                inputs.append(f'<label>{esc(f)}<input name="{esc(f)}" type="{typ}">'
+                inputs.append(f'<label>{pretty(f)}<input name="{esc(f)}" type="{typ}">'
                               f'</label>')
             content = f"""<div class="detail"><h1>new {esc(rb.entity)}</h1>
 <form class="fields" method="post" action="/ui/new">{''.join(inputs)}
-<button class="act go" style="justify-self:start">{esc(t.action)}</button></form>
+<button class="act go" style="justify-self:start">{pretty(t.action)}</button></form>
 <p style="margin-top:12px"><a href="/ui">← back to board</a></p></div>"""
             return self.page(actor, content, self.banner_html())
 
