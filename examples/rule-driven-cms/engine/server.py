@@ -30,6 +30,21 @@ from . import rulebase as rb_mod
 from . import store
 
 
+def evaluate(rb, actor, action, row, today, new_fields=None):
+    """The one enforcement path, shared by the JSON API and the web UI:
+    structural lifecycle check, then the rule decision. Returns
+    (status, verdict, situation) where status is 'illegal' or 'ok'."""
+    state = row["state"] if row is not None else rb_mod.NO_STATE
+    if not rb.lifecycle_legal(action, state):
+        return "illegal", None, None
+    fields = new_fields if row is None else {f: row[f] for f in rb.fields}
+    is_author = True if row is None else actor.name == row["author"]
+    situation = rb.situation(actor.role, actor.active, is_author, action, state,
+                             fields, today=today,
+                             actor_attrs=features_mod.actor_attrs(actor))
+    return "ok", rb.decide(situation), situation
+
+
 def make_handler(rb, conn, clock=None, mutable_clock=False):
     clock = clock if clock is not None else {}
     plural = rb.entity + "s"
@@ -78,17 +93,13 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
         # -- the one enforcement point ----------------------------------------
         def authorize(self, actor, action, row, new_fields=None):
             """Returns None if allowed, else sends the refusal response."""
-            state = row["state"] if row is not None else rb_mod.NO_STATE
-            if not rb.lifecycle_legal(action, state):
+            status, verdict, situation = evaluate(
+                rb, actor, action, row, clock.get("today"), new_fields)
+            if status == "illegal":
+                state = row["state"] if row is not None else rb_mod.NO_STATE
                 self.send_json(400, {"error": "invalid_transition",
                                      "detail": f"cannot {action} in state {state!r}"})
                 return "sent"
-            fields = new_fields if row is None else {f: row[f] for f in rb.fields}
-            is_author = True if row is None else actor.name == row["author"]
-            situation = rb.situation(actor.role, actor.active, is_author,
-                                     action, state, fields, today=clock.get("today"),
-                                     actor_attrs=features_mod.actor_attrs(actor))
-            verdict = rb.decide(situation)
             if verdict.effect == "deny":
                 self.send_json(403, {"error": "forbidden", "denied_by": verdict.id,
                                      "description": verdict.description,
@@ -121,12 +132,8 @@ def make_handler(rb, conn, clock=None, mutable_clock=False):
                 self.send_json(200, self.item_json(row))
 
         def authorize_quiet(self, actor, action, row):
-            situation = rb.situation(actor.role, actor.active,
-                                     actor.name == row["author"], action,
-                                     row["state"], {f: row[f] for f in rb.fields},
-                                     today=clock.get("today"),
-                                     actor_attrs=features_mod.actor_attrs(actor))
-            return rb.decide(situation).effect == "allow"
+            _, verdict, _ = evaluate(rb, actor, action, row, clock.get("today"))
+            return verdict is not None and verdict.effect == "allow"
 
         def do_POST(self):
             if self.path == "/__clock":
@@ -213,13 +220,19 @@ def main():
                     help="the engine's current date (ISO), feeding date projections")
     ap.add_argument("--mutable-clock", action="store_true",
                     help="test seam: enable POST /__clock to change the date")
+    ap.add_argument("--ui", action="store_true",
+                    help="also serve the generic web UI under /ui")
     args = ap.parse_args()
 
     rb = rb_mod.load(f"{args.rules}/rules.yaml")
     seed_actors = features_mod.load(args.seed)[0] if args.seed else None
     conn = store.open_db(args.db, rb, seed_actors)
-    handler = make_handler(rb, conn, clock={"today": args.today},
-                           mutable_clock=args.mutable_clock)
+    factory = make_handler
+    if args.ui:
+        from . import ui
+        factory = ui.make_handler
+    handler = factory(rb, conn, clock={"today": args.today},
+                      mutable_clock=args.mutable_clock)
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     print(f"READY port={httpd.server_address[1]} entity={rb.entity} "
           f"today={args.today}", flush=True)

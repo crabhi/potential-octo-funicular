@@ -33,6 +33,10 @@ def get_user(conn, name):
     return conn.execute("SELECT * FROM users WHERE name = ?", (name,)).fetchone()
 
 
+def list_users(conn):
+    return conn.execute("SELECT * FROM users ORDER BY role, name").fetchall()
+
+
 def get_item(conn, item_id):
     return conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
 
