@@ -19,19 +19,29 @@ application**:
  engine/ + analysis/         generic, domain-free, reusable                 ~1010 lines
 ```
 
-The engine (HTTP server, SQLite store, decision function, **web UI**)
+The engine (kernel, HTTP server, SQLite store, decision function, web UI)
 contains **no domain words** — grep it for `article`, `publish`, `editor`:
 they occur only in docstrings. The proof that it's generic is executable:
 ruleset `tickets/` is a *different service* (support tickets) served and
-analyzed by the same engine, byte for byte — and `../taskboard/` is a
-fourth, complete SaaS application (with the DX study, note 14) running on
-it from another directory.
+analyzed by the same engine, byte for byte — and `../taskboard/` and
+`../helpdesk/` are complete SaaS applications (notes 14 and 15) running
+on it from other directories.
 
-Since the taskboard episode the engine also serves a **browser UI derived
-from the rule base** (`--ui`, engine/ui.py): board columns from the
-lifecycle, cards filtered by the read rule, action buttons enabled/greyed
-by the decision function with the denying rule named, forms from fields,
-and `/ui/rules` rendering the program. Try it on the CMS:
+**The verified boundary is `engine/kernel.py`** (guardrail 10): a
+class/function-level API — `visible/get/create/act/edit/delete` decided by
+the rule base before the store is touched, typed `Denied` refusals naming
+the rule, pure `decide()`/`affordances()` for rendering. Edits are decided
+twice (on the current row and on the row as it would become), so a
+proposed value cannot move a resource somewhere the rules refuse. The HTTP
+API (server.py) and the generic UI (ui.py) are thin adapters over one
+shared kernel; app code above the boundary imports `engine.kernel` and
+nothing else, held mechanically by `python -m analysis.boundary <app>`.
+
+The **generic browser UI** (`--ui`, engine/ui.py) is *scaffolding*: a
+diagnostic rendering of the rule base (board from the lifecycle, buttons
+from the decision function with denying rules named, `/ui/rules` = the
+program). Product surfaces are hand-written free clients of the kernel
+instead — see `../helpdesk/` for the htmx app. Try the scaffold on the CMS:
 
 ```
 python -m engine.server --rules rulesets/cms --db /tmp/cms.db --ui \
@@ -354,8 +364,9 @@ Honest limits, kept sharp on purpose:
 | `rulesets/cms-import-naive/` | the obvious import extension; must FAIL (5 findings) |
 | `rulesets/tickets/` | a different service on the same engine (generality proof) |
 | `rulesets/receivables/` | third domain: money owed, due dates, bank feed (transfer test) |
-| `engine/` | generic: conditions (two backends), rule base, store, HTTP server, clock |
+| `engine/` | generic: conditions (two backends), rule base, store, **kernel (the verified boundary)**, HTTP + UI adapters, clock |
 | `analysis/analyze.py` | Z3 gate: dead rules, assumptions, ∀-safety, ∃-possibility, lifecycle, features |
+| `analysis/boundary.py` | the boundary lint: app code imports engine.kernel and nothing beneath it |
 | `live_demo.py` | replay the frozen features over real HTTP + visibility probe |
 | `mock_publishers.py` | the external side: three canned publisher feeds |
 | `importer.py` | the nightly job — an unprivileged HTTP client under the rules |

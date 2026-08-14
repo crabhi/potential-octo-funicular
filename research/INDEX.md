@@ -19,15 +19,39 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [12-rung5-proofs-in-code-from-spec.md](12-rung5-proofs-in-code-from-spec.md) | Rung 5 expanded: five patterns for proofs-in-code / code-from-spec in an LLM-built SaaS; Cedar/Dafny/Verus evidence; gaps we can own | draft |
 | [13-rule-based-cms.md](13-rule-based-cms.md) | Rule-based systems as the programming surface: rules ARE the program, solver reviews the rule base, engine proven once; falsifiers RB1–RB5 | draft |
 | [14-developer-experience.md](14-developer-experience.md) | DX study: Flowdeck (multi-tenant kanban SaaS) built end to end as rules with a generic web UI; 4 rounds × 0.18 s, 2 real authz holes caught, frictions enumerated; falsifiers DX1–DX3 | draft |
+| [15-kernel-boundary-free-ui.md](15-kernel-boundary-free-ui.md) | Guardrail 10: the verified boundary is a function-level kernel API; the UI (htmx) is agent-authored and free; boundary lint, two-phase edits, Relay helpdesk; falsifiers KB1–KB4 | draft |
 
 Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
 the full pipeline, formal-methods framing (spec beside code);
 `examples/rule-driven-cms/` — the same domain rebuilt ground-up under the
-rule-based framing (the rule base is the program; note 13); and
-`examples/taskboard/` — Flowdeck, an end-to-end SaaS app with a clickable
-UI derived from the rule base, plus the honest DEVLOG (note 14).
+rule-based framing (the rule base is the program; note 13);
+`examples/taskboard/` — Flowdeck, an end-to-end SaaS app on the generic
+reflected UI, plus the honest DEVLOG (note 14); and `examples/helpdesk/` —
+Relay, the guardrail-10 prototype: a hand-written htmx UI, free above a
+verified kernel boundary (note 15).
 
 ## Change log
+
+- 2026-08-14 (kernel boundary, free UI — the developer's redirect): the
+  generic UI is out as a product surface; UX customizability is
+  first-class. Guardrail 10 recorded: rules guard interaction logic at a
+  class/function-level API (`engine/kernel.py` — reads and mutations
+  decided before the store is touched, typed `Denied` refusals naming the
+  rule, pure `decide`/`affordances` for rendering); the UI above it is
+  agent-authored htmx, held to the boundary mechanically
+  (`analysis/boundary.py`: app code imports engine.kernel only; a
+  preserved bypass variant must FAIL the lint in CI). The kernel decides
+  edits twice (current row AND post-edit row), closing note 14's "edit is
+  blind to proposed values" gap for every service at once — all existing
+  gates replayed green. New prototype `examples/helpdesk/` (Relay,
+  customer-support desk): 7 tickets → 14 rules, frozen gate 13 ∀ + 9 ∃ +
+  42 steps, 19,200 situations backend-agreed, analyzer round-1 PASS with
+  pre-registered predictions held (containment-without-deny-rules
+  transferred as method knowledge; engine domain growth for domain #4:
+  0 lines). The free layer produced product UX a reflected UI cannot
+  (cross-state SLA-breached queue, assign-to-me, locked-action
+  disclosures); forged requests for hidden buttons bounce off the kernel
+  403-named. Note 15 (falsifiers KB1–KB4); slides regenerated.
 
 - 2026-08-14 (developer experience, end to end): the developer asked to
   push on DX — build a full example application and report how development

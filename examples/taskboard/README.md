@@ -8,6 +8,14 @@ receivables) proved the engine generalizes; this one adds the missing
 pieces of "a real app": a **web UI you can click**, demo data, and an
 unedited log of the loop (DEVLOG.md).
 
+> **Positioning update (guardrail 10, 2026-08-14):** Flowdeck runs on the
+> *generic reflected UI*, which is now officially scaffolding — great for
+> inspecting the rule base, wrong as a product surface, because UX
+> customizability is first-class. The successor architecture (a FREE,
+> hand-written htmx UI over the verified kernel API) is
+> `../helpdesk/` (Relay, research note 15). This example remains the DX
+> study of the rule loop itself.
+
 ```
 ./check.sh     # tests + static gate + frozen round-2 regression + HTTP replay + app boot
 python app.py  # serve it: http://127.0.0.1:8800/ui  (personas switchable in the header)
