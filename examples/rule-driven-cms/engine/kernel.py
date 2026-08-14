@@ -20,6 +20,18 @@ hiding a button changes nothing about what the kernel permits.
     try: k.delete(actor, row["id"])
     except kernel.Denied as e: e.rule.id         # 'nothing_is_deleted'
 
+CHILD ENTITIES (comments, attachments — anything context-sensitive): the
+same calls take an `entity=` name, creation takes the parent's id, and the
+kernel joins the live parent row into every decision — the client never
+computes context, so it can never compute it wrong:
+
+    note = k.create(actor, {"body": "internal note", "internal": "yes"},
+                    entity="comment", parent_id=case["id"])
+    k.visible(actor, entity="comment", parent_id=case["id"])   # the thread
+    k.act(actor, "redact", note["id"], entity="comment")
+    # a closed case seals its thread: parent.state is in the situation
+    # the rules decide on — the deny names the rule, as always
+
 App code imports THIS MODULE ONLY — not the store, not sqlite3, not the
 server. The boundary is held mechanically by `python -m analysis.boundary
 <app dir>` (run it in the app's check.sh), and the connection is
@@ -67,20 +79,25 @@ class Illegal(Exception):
         self.state = state
 
 
-def evaluate(rb, actor, action, row, today, new_fields=None):
+def evaluate(rb, actor, action, row, today, new_fields=None,
+             entity=None, parent_row=None):
     """The one decision path: structural lifecycle check, then the rule
     decision. Returns (status, verdict, situation) with status 'illegal'
     or 'ok'. `row` is any mapping with author, state and the fields;
-    `new_fields` is the create path (no row exists yet)."""
+    `new_fields` is the create path (no row exists yet). For a child
+    entity, `parent_row` is the live parent — its state and projections
+    are the context the rules decide on."""
+    ent = rb.entity_of(entity)
     state = row["state"] if row is not None else rb_mod.NO_STATE
-    if not rb.lifecycle_legal(action, state):
+    if not ent.lifecycle_legal(action, state):
         return "illegal", None, None
-    fields = new_fields if row is None else {f: row[f] for f in rb.fields}
+    fields = new_fields if row is None else {f: row[f] for f in ent.fields}
     is_author = True if row is None else actor.name == row["author"]
-    situation = rb.situation(actor.role, actor.active, is_author, action, state,
-                             fields, today=today,
-                             actor_attrs=features_mod.actor_attrs(actor))
-    return "ok", rb.decide(situation), situation
+    situation = ent.situation(actor.role, actor.active, is_author, action, state,
+                              fields, today=today,
+                              actor_attrs=features_mod.actor_attrs(actor),
+                              parent=parent_row)
+    return "ok", rb.decide(situation, entity=ent.name), situation
 
 
 class Kernel:
@@ -117,81 +134,146 @@ class Kernel:
                 for r in store.list_users(self.__conn)]
 
     # -- pure decisions (no mutation; UIs build affordances from these) ---------
-    def decide(self, actor, action, row=None, new_fields=None):
+    def decide(self, actor, action, row=None, new_fields=None,
+               entity=None, parent=None):
+        """For a child entity, `parent` is the parent row or its id; when
+        omitted and `row` is a stored child, the kernel joins the parent
+        itself (the client never has to)."""
+        ent = self.rb.entity_of(entity)
+        parent_row = self.__parent_row(ent, row, parent)
         status, verdict, situation = evaluate(
-            self.rb, actor, action, row, self.today, new_fields)
+            self.rb, actor, action, row, self.today, new_fields,
+            entity=ent.name, parent_row=parent_row)
         if status == "illegal":
             return Decision(False, None, None)
         return Decision(verdict.effect == "allow", verdict, situation)
 
-    def affordances(self, actor, row):
+    def affordances(self, actor, row, entity=None):
         """Every structurally-legal action on this row (read excluded),
         with its Decision — enough to render buttons, or to hide them, or
         anything else: the presentation is the client's business."""
-        return [(a, self.decide(actor, a, row)) for a in self.rb.actions
-                if a != "read" and self.rb.lifecycle_legal(a, row["state"])]
+        ent = self.rb.entity_of(entity)
+        parent_row = self.__parent_row(ent, row, None)
+        return [(a, self.decide(actor, a, row, entity=ent.name, parent=parent_row))
+                for a in ent.actions
+                if a != "read" and ent.lifecycle_legal(a, row["state"])]
 
     # -- reads -------------------------------------------------------------------
-    def visible(self, actor):
-        """All rows this actor's read decision allows — the list IS the rule."""
-        return [r for r in store.list_items(self.__conn)
-                if self.decide(actor, "read", r).allowed]
+    def visible(self, actor, entity=None, parent_id=None):
+        """All rows this actor's read decision allows — the list IS the
+        rule. For a child entity, pass parent_id to list one thread; the
+        kernel joins each row's parent into the read decision either way."""
+        ent = self.rb.entity_of(entity)
+        parents = {}
+        out = []
+        for r in store.list_items(self.__conn, self.rb, ent.name, parent_id):
+            parent_row = None
+            if ent.parent is not None:
+                pid = r["parent_id"]
+                if pid not in parents:
+                    parents[pid] = store.get_item(self.__conn, self.rb, pid,
+                                                  ent.parent.name)
+                parent_row = parents[pid]
+            if self.decide(actor, "read", r, entity=ent.name,
+                           parent=parent_row).allowed:
+                out.append(r)
+        return out
 
-    def get(self, actor, item_id):
+    def get(self, actor, item_id, entity=None):
         """One row, read-decided: None if it does not exist, Denied if it
         exists but the rules refuse this actor the read."""
-        row = store.get_item(self.__conn, int(item_id))
+        ent = self.rb.entity_of(entity)
+        row = store.get_item(self.__conn, self.rb, int(item_id), ent.name)
         if row is None:
             return None
-        self.__require(actor, "read", row)
+        self.__require(actor, "read", row, entity=ent.name)
         return row
 
     # -- mutations (decide, then store; never the other way around) --------------
-    def create(self, actor, fields):
-        t = self.rb.creating_transition()
-        fields = {f: str((fields or {}).get(f, "")) for f in self.rb.fields}
-        self.__require(actor, t.action, None, new_fields=fields)
-        item_id = store.create_item(self.__conn, self.rb, actor.name,
-                                    t.target, fields)
-        return store.get_item(self.__conn, item_id)
+    def create(self, actor, fields, entity=None, parent_id=None):
+        ent = self.rb.entity_of(entity)
+        if (parent_id is not None) != (ent.parent is not None):
+            raise ValueError(f"entity {ent.name!r} "
+                             + ("takes no parent_id" if ent.parent is None
+                                else "needs a parent_id"))
+        parent_row = None
+        if ent.parent is not None:
+            parent_row = store.get_item(self.__conn, self.rb, int(parent_id),
+                                        ent.parent.name)
+            if parent_row is None:
+                raise KeyError(parent_id)
+        t = ent.creating_transition()
+        fields = {f: str((fields or {}).get(f, "")) for f in ent.fields}
+        self.__require(actor, t.action, None, new_fields=fields,
+                       entity=ent.name, parent_row=parent_row)
+        item_id = store.create_item(self.__conn, self.rb, actor.name, t.target,
+                                    fields, entity=ent.name, parent_id=parent_id)
+        return store.get_item(self.__conn, self.rb, item_id, ent.name)
 
-    def act(self, actor, action, item_id):
+    def act(self, actor, action, item_id, entity=None):
         """A declared lifecycle transition (create has its own method)."""
-        row = self.__row(item_id)
-        t = self.rb.transition_for(action, row["state"])
+        ent = self.rb.entity_of(entity)
+        row = self.__row(item_id, ent)
+        t = ent.transition_for(action, row["state"])
         if t is None or t.source == rb_mod.NO_STATE:
             raise Illegal(action, row["state"])
-        self.__require(actor, action, row)
-        store.update_item(self.__conn, self.rb, row["id"], {"state": t.target})
-        return store.get_item(self.__conn, row["id"])
+        self.__require(actor, action, row, entity=ent.name)
+        store.update_item(self.__conn, self.rb, row["id"], {"state": t.target},
+                          entity=ent.name)
+        return store.get_item(self.__conn, self.rb, row["id"], ent.name)
 
-    def edit(self, actor, item_id, updates):
-        row = self.__row(item_id)
+    def edit(self, actor, item_id, updates, entity=None):
+        ent = self.rb.entity_of(entity)
+        row = self.__row(item_id, ent)
         updates = {f: str(v) for f, v in (updates or {}).items()
-                   if f in self.rb.fields}
-        self.__require(actor, "edit", row)          # may they edit this?
-        after = {f: row[f] for f in self.rb.fields}
+                   if f in ent.fields}
+        parent_row = self.__parent_row(ent, row, None)
+        self.__require(actor, "edit", row, entity=ent.name,
+                       parent_row=parent_row)          # may they edit this?
+        after = {f: row[f] for f in ent.fields}
         after.update(updates)
         after["state"], after["author"] = row["state"], row["author"]
-        self.__require(actor, "edit", after)        # may it BECOME this?
-        store.update_item(self.__conn, self.rb, row["id"], updates)
-        return store.get_item(self.__conn, row["id"])
+        self.__require(actor, "edit", after, entity=ent.name,
+                       parent_row=parent_row)          # may it BECOME this?
+        store.update_item(self.__conn, self.rb, row["id"], updates,
+                          entity=ent.name)
+        return store.get_item(self.__conn, self.rb, row["id"], ent.name)
 
-    def delete(self, actor, item_id):
-        row = self.__row(item_id)
-        self.__require(actor, "delete", row)
-        store.delete_item(self.__conn, row["id"])
+    def delete(self, actor, item_id, entity=None):
+        ent = self.rb.entity_of(entity)
+        row = self.__row(item_id, ent)
+        self.__require(actor, "delete", row, entity=ent.name)
+        store.delete_item(self.__conn, self.rb, row["id"], entity=ent.name)
 
     # -- internal -----------------------------------------------------------------
-    def __row(self, item_id):
-        row = store.get_item(self.__conn, int(item_id))
+    def __row(self, item_id, ent):
+        row = store.get_item(self.__conn, self.rb, int(item_id), ent.name)
         if row is None:
             raise KeyError(item_id)
         return row
 
-    def __require(self, actor, action, row, new_fields=None):
+    def __parent_row(self, ent, row, parent):
+        """Resolve the parent row for a child-entity decision: an explicit
+        row mapping, an explicit id, or the stored row's own parent_id."""
+        if ent.parent is None:
+            return None
+        if parent is not None and not isinstance(parent, int):
+            return parent
+        pid = parent
+        if pid is None and row is not None and "parent_id" in row.keys():
+            pid = row["parent_id"]
+        if pid is None:
+            return None
+        return store.get_item(self.__conn, self.rb, int(pid), ent.parent.name)
+
+    def __require(self, actor, action, row, new_fields=None,
+                  entity=None, parent_row=None):
+        ent = self.rb.entity_of(entity)
+        if ent.parent is not None and parent_row is None:
+            parent_row = self.__parent_row(ent, row, None)
         status, verdict, situation = evaluate(
-            self.rb, actor, action, row, self.today, new_fields)
+            self.rb, actor, action, row, self.today, new_fields,
+            entity=ent.name, parent_row=parent_row)
         if status == "illegal":
             state = row["state"] if row is not None else rb_mod.NO_STATE
             raise Illegal(action, state)

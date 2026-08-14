@@ -232,6 +232,194 @@ def test_kernel_hides_its_connection():
     assert not hasattr(k, "conn") and not hasattr(k, "_conn")
 
 
+# --- multiple entity types: children with parent context ---------------------
+
+MULTI = rulebase.RuleBase({
+    "entity": "case",
+    "roles": ["member", "admin"],
+    "states": ["open", "closed"],
+    "fields": [{"name": "team", "has": False}],
+    "actor_fields": ["team"],
+    "projections": [{"name": "same_team", "kind": "actor_matches_field",
+                     "actor_attr": "team", "field": "team"}],
+    "lifecycle": {"transitions": [
+        {"action": "create", "from": "none", "to": "open"},
+        {"action": "close", "from": "open", "to": "closed"}]},
+    "children": [{
+        "entity": "note",
+        "states": ["posted"],
+        "fields": ["body"],
+        "context": ["state", "is_author", "same_team"],
+        "lifecycle": {"transitions": [
+            {"action": "post", "from": "none", "to": "posted"}]},
+    }],
+    "rules": [
+        {"id": "own_team_only", "effect": "deny",
+         "when": 'actor.role == "member" and not resource.same_team'},
+        {"id": "member_case", "effect": "allow",
+         "when": 'actor.role == "member" and action in ["read", "edit", "create", "close"]'},
+        {"id": "admin_case", "effect": "allow",
+         "when": 'actor.role == "admin"'},
+        {"id": "own_team_notes", "entity": "note", "effect": "deny",
+         "when": 'actor.role == "member" and not parent.same_team'},
+        {"id": "sealed_thread", "entity": "note", "effect": "deny",
+         "when": 'parent.state == "closed" and action != "read"'},
+        {"id": "note_needs_body", "entity": "note", "effect": "deny",
+         "when": 'action == "post" and not resource.has_body'},
+        {"id": "member_notes", "entity": "note", "effect": "allow",
+         "when": 'actor.role == "member" and action in ["read", "post"]'},
+    ],
+}, name="multi")
+
+
+def test_child_entities_load_and_the_root_view_is_unchanged():
+    assert set(MULTI.entities) == {"case", "note"}
+    # single-entity API still answers for the root
+    assert MULTI.entity == "case" and MULTI.fields == ("team",)
+    assert MULTI.creating_transition().action == "create"
+    note = MULTI.entity_of("note")
+    assert note.parent is MULTI.root
+    assert MULTI.vocabulary.enums.keys() != note.vocabulary.enums.keys()
+    assert note.vocabulary.enums["parent.state"] == ("open", "closed")  # no 'none'
+    assert "parent.same_team" in note.vocabulary.bools
+    assert "parent.is_author" in note.vocabulary.bools
+
+
+def test_multi_entity_load_errors():
+    def doc(**over):
+        import copy
+        d = {"entity": "a", "roles": ["r"], "states": ["s"], "fields": [],
+             "lifecycle": {"transitions": [{"action": "make", "from": "none", "to": "s"}]},
+             "children": [copy.deepcopy(over.pop("child", {
+                 "entity": "b", "states": ["t"], "fields": [],
+                 "lifecycle": {"transitions": [{"action": "add", "from": "none", "to": "t"}]}}))],
+             "rules": [{"id": "r1", "effect": "allow", "when": 'actor.active'}]}
+        d.update(over)
+        return d
+    rulebase.RuleBase(doc(), name="ok")  # the baseline loads
+    with pytest.raises(rulebase.RuleBaseError):  # unknown context atom
+        rulebase.RuleBase(doc(child={
+            "entity": "b", "states": ["t"], "fields": [], "context": ["ghost"],
+            "lifecycle": {"transitions": [{"action": "add", "from": "none", "to": "t"}]}}), "x")
+    with pytest.raises(rulebase.RuleBaseError):  # children of children
+        rulebase.RuleBase(doc(child={
+            "entity": "b", "states": ["t"], "fields": [], "children": [],
+            "lifecycle": {"transitions": [{"action": "add", "from": "none", "to": "t"}]}}), "x")
+    with pytest.raises(rulebase.RuleBaseError):  # rule tagged for a ghost entity
+        rulebase.RuleBase(doc(rules=[{"id": "r1", "entity": "ghost",
+                                      "effect": "allow", "when": "actor.active"}]), "x")
+    with pytest.raises(rulebase.RuleBaseError):  # root cannot declare context
+        rulebase.RuleBase(doc(context=["state"]), "x")
+
+
+def test_child_situation_carries_parent_context():
+    note = MULTI.entity_of("note")
+    parent = {"state": "open", "author": "tom", "team": "argo"}
+    s = note.situation("member", True, True, "post", "none", {"body": "b"},
+                       actor_attrs={"name": "tom", "team": "argo"}, parent=parent)
+    assert s["parent.state"] == "open"
+    assert s["parent.is_author"] and s["parent.same_team"]
+    s2 = note.situation("member", True, False, "read", "posted", {"body": "b"},
+                        actor_attrs={"name": "nadia", "team": "boreal"}, parent=parent)
+    assert not s2["parent.is_author"] and not s2["parent.same_team"]
+    with pytest.raises(ValueError):  # context without the parent row is a bug
+        note.situation("member", True, True, "post", "none", {"body": "b"})
+
+
+def test_backends_agree_on_every_situation_per_entity():
+    for ent_name, ent in MULTI.entities.items():
+        sym = SymbolTable(ent.vocabulary)
+        conds = [r.when for r in MULTI.rules_for(ent_name)] \
+            + [a.holds for a in MULTI.assumptions_for(ent_name)]
+        compiled = [c.to_z3(sym) for c in conds]
+        for s in ent.all_situations():
+            subst = []
+            for var, const in sym.consts.items():
+                if var in sym.lits:
+                    subst.append((const, sym.lits[var][s[var]]))
+                else:
+                    subst.append((const, z3.BoolVal(s[var])))
+            for cond, f in zip(conds, compiled):
+                z3_val = z3.is_true(z3.simplify(z3.substitute(f, *subst)))
+                assert cond.evaluate(s) == z3_val, (ent_name, cond.source, s)
+
+
+def make_multi_kernel():
+    actors = {
+        "tom": features.Actor("tom", "member", True, {"team": "argo"}),
+        "nadia": features.Actor("nadia", "member", True, {"team": "boreal"}),
+        "root": features.Actor("root", "admin", True, {"team": ""}),
+    }
+    conn = store_mod.open_db(":memory:", MULTI, actors)
+    return kernel_mod.Kernel(MULTI, conn), actors
+
+
+def test_kernel_joins_the_parent_into_child_decisions():
+    k, a = make_multi_kernel()
+    case = k.create(a["tom"], {"team": "argo"})
+    note = k.create(a["tom"], {"body": "hi"}, entity="note", parent_id=case["id"])
+    assert note["parent_id"] == case["id"] and note["state"] == "posted"
+    # the other team's member is walled off the thread by the PARENT's team
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.get(a["nadia"], note["id"], entity="note")
+    assert e.value.rule.id == "own_team_notes"
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.create(a["nadia"], {"body": "hey"}, entity="note", parent_id=case["id"])
+    assert e.value.rule.id == "own_team_notes"
+    thread = k.visible(a["tom"], entity="note", parent_id=case["id"])
+    assert [r["id"] for r in thread] == [note["id"]]
+    assert k.visible(a["nadia"], entity="note", parent_id=case["id"]) == []
+    # a child needs its parent named; the root refuses one
+    with pytest.raises(ValueError):
+        k.create(a["tom"], {"body": "x"}, entity="note")
+    with pytest.raises(ValueError):
+        k.create(a["tom"], {"team": "argo"}, parent_id=case["id"])
+
+
+def test_closing_the_parent_seals_the_thread_live():
+    k, a = make_multi_kernel()
+    case = k.create(a["tom"], {"team": "argo"})
+    k.create(a["tom"], {"body": "before"}, entity="note", parent_id=case["id"])
+    k.act(a["tom"], "close", case["id"])
+    # same call that just succeeded — the parent's new state now refuses it
+    with pytest.raises(kernel_mod.Denied) as e:
+        k.create(a["tom"], {"body": "after"}, entity="note", parent_id=case["id"])
+    assert e.value.rule.id == "sealed_thread"
+    # ... but the record stays readable: context-sensitivity, not lockout
+    assert len(k.visible(a["tom"], entity="note", parent_id=case["id"])) == 1
+
+
+def test_parent_delete_cascades_to_children():
+    # the known sharp edge, pinned: deleting a parent removes its children
+    # WITHOUT consulting the children's own delete rules (research note 16)
+    k, a = make_multi_kernel()
+    case = k.create(a["tom"], {"team": "argo"})
+    note = k.create(a["tom"], {"body": "hi"}, entity="note", parent_id=case["id"])
+    k.delete(a["root"], case["id"])
+    assert k.get(a["root"], case["id"]) is None
+    assert k.get(a["root"], note["id"], entity="note") is None
+
+
+def test_feature_steps_reach_child_entities():
+    actors = {"tom": features.Actor("tom", "member", True, {"team": "argo"}),
+              "nadia": features.Actor("nadia", "member", True, {"team": "boreal"})}
+    ex = features.PureExecutor(MULTI, actors)
+    res = ex.run({"steps": [
+        {"actor": "tom", "action": "create", "set": {"team": "argo"}, "expect": "allow"},
+        {"actor": "tom", "entity": "note", "action": "post", "expect": "deny",
+         "denied_by": "note_needs_body"},
+        {"actor": "tom", "entity": "note", "action": "post", "set": {"body": "hi"},
+         "expect": "allow", "state_after": "posted"},
+        {"actor": "nadia", "entity": "note", "action": "read", "expect": "deny",
+         "denied_by": "own_team_notes"},
+        {"actor": "tom", "action": "close", "expect": "allow", "state_after": "closed"},
+        {"actor": "tom", "entity": "note", "action": "post", "set": {"body": "x"},
+         "expect": "deny", "denied_by": "sealed_thread"},
+        {"actor": "tom", "entity": "note", "action": "read", "expect": "allow"},
+    ]})
+    assert res.ok, res.message
+
+
 def test_actor_matches_field_projection():
     fields = {"title": "t", "team": "argo", "assignee": "tom"}
     s = MINI.situation("member", True, False, "read", "open", fields,

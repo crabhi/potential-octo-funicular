@@ -7,7 +7,13 @@ Two executors share the step semantics:
   * the HTTP executor in live_demo.py — replays the same file against the
     running service and must observe the same outcomes, including which
     rule denied (the model<->implementation conformance check).
-"""
+
+A step acts on the ROOT entity unless it names another: `entity: comment`
+targets the (single) live comment, and a child-creating step implicitly
+attaches to the live root item — so a feature reads as one story: open a
+case, post to it, close it, watch the thread seal. Child decisions are
+made with the live parent's CURRENT state as context, exactly as the
+kernel decides them at runtime."""
 
 import collections
 import datetime
@@ -47,13 +53,14 @@ def load(path):
 
 
 class PureExecutor:
-    """Replays one feature against the decision function alone."""
+    """Replays one feature against the decision function alone. Tracks one
+    live item PER ENTITY: {'author':, 'state':, fields...} keyed by name."""
 
     def __init__(self, rb, actors, today=None):
         self.rb = rb
         self.actors = actors
         self.today = today
-        self.item = None  # {'author':, 'state':, fields...}
+        self.items = {}
 
     def run(self, feature):
         for i, step in enumerate(feature["steps"], 1):
@@ -71,38 +78,49 @@ class PureExecutor:
             self.today = add_days(self.today, step["advance_days"])
             return StepResult(True, "")
         actor = self.actors[step["actor"]]
+        ent = rb.entity_of(step.get("entity"))
+        item = self.items.get(ent.name)
         action = step["action"]
-        t_first = rb.transition_for(action)
+        t_first = ent.transition_for(action)
         creating = t_first is not None and t_first.source == rb_mod.NO_STATE
+
+        # a child's decisions carry its parent's LIVE state as context
+        parent = None
+        if ent.parent is not None:
+            parent = self.items.get(ent.parent.name)
+            if parent is None:
+                return StepResult(False, f"no {ent.parent.name} exists to parent "
+                                         f"this {ent.name}")
 
         if creating:
             state, is_author = rb_mod.NO_STATE, True
-            fields = {f: (step.get("set") or {}).get(f, "") for f in rb.fields}
-        elif self.item is None:
-            return StepResult(False, "no item exists yet")
+            fields = {f: (step.get("set") or {}).get(f, "") for f in ent.fields}
+        elif item is None:
+            return StepResult(False, f"no {ent.name} exists yet")
         else:
-            state = self.item["state"]
-            is_author = actor.name == self.item["author"]
-            fields = {f: self.item[f] for f in rb.fields}
+            state = item["state"]
+            is_author = actor.name == item["author"]
+            fields = {f: item[f] for f in ent.fields}
 
-        if not rb.lifecycle_legal(action, state):
+        if not ent.lifecycle_legal(action, state):
             return StepResult(False, f"structurally illegal: {action} in state {state}")
 
-        situation = rb.situation(actor.role, actor.active, is_author, action,
-                                 state, fields, today=self.today,
-                                 actor_attrs=actor_attrs(actor))
-        verdict = rb.decide(situation)
+        def decide(fields):
+            situation = ent.situation(actor.role, actor.active, is_author,
+                                      action, state, fields, today=self.today,
+                                      actor_attrs=actor_attrs(actor), parent=parent)
+            return rb.decide(situation, entity=ent.name)
+
+        verdict = decide(fields)
         if verdict.effect == "allow" and action == "edit":
             # edits are decided twice, here and in the kernel alike: on the
             # current row AND on the row as it would become — a proposed
             # value may not put the resource somewhere the rules refuse
             after = dict(fields)
             for f, v in (step.get("set") or {}).items():
-                if f in rb.fields:
+                if f in ent.fields:
                     after[f] = v
-            verdict = rb.decide(rb.situation(
-                actor.role, actor.active, is_author, action, state, after,
-                today=self.today, actor_attrs=actor_attrs(actor)))
+            verdict = decide(after)
 
         expect = step["expect"]
         got = "allow" if verdict.effect == "allow" else "deny"
@@ -115,21 +133,24 @@ class PureExecutor:
             return StepResult(True, "")
 
         # apply the allowed step
-        t = rb.transition_for(action, state) if not creating else t_first
+        t = ent.transition_for(action, state) if not creating else t_first
         if creating:
-            self.item = {"author": actor.name, "state": t.target, **fields}
+            self.items[ent.name] = {"author": actor.name, "state": t.target, **fields}
         elif t is not None:
-            self.item["state"] = t.target
+            item["state"] = t.target
         elif action == "edit":
             for f, v in (step.get("set") or {}).items():
-                if f in rb.fields:
-                    self.item[f] = v
+                if f in ent.fields:
+                    item[f] = v
         elif action == "delete":
-            self.item = None
+            del self.items[ent.name]
+            if ent.parent is None:  # the store cascades; so does the replay
+                self.items.clear()
 
         want_state = step.get("state_after")
         if want_state:
-            have = self.item["state"] if self.item else "deleted"
+            live = self.items.get(ent.name)
+            have = live["state"] if live else "deleted"
             if have != want_state:
                 return StepResult(False, f"state is {have}, expected {want_state}")
         return StepResult(True, "")
