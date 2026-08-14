@@ -182,10 +182,15 @@ Two things the round taught that were NOT predicted:
 
 * Domain vocabulary added to the engine for Relay: **0 lines** — the
   note-14 transfer-cost prediction (tickets ~0 → receivables ~100 →
-  Flowdeck ~60 → next domain 0) **confirmed**.
+  Flowdeck ~60 → next domain 0) **confirmed**; held again for the
+  round-2 thread/evidence extension (P-e).
 * Architecture added (developer-directed, domain-free, reusable): kernel
-  ~200 lines + lint ~110 lines.
-* Rules 14, gate 13 S + 9 P + 2 gated entries + 42 frozen steps; analyzer
-  round ~0.2 s; situation space 19,200, exhaustively backend-agreed.
-* App: ~500 lines of UI nobody needs to review for policy; 12 tests;
+  ~250 lines + lint ~110 lines + multi-entity mechanism (children,
+  context, per-entity analysis — research note 16).
+* Rules 33 over 3 entities; gate 29 S + 16 P + 4 gated entries + 75
+  frozen steps; analyzer round ~0.4 s; situation space 37,200 (case
+  19,200 + comment 12,000 + attachment 6,000), exhaustively
+  backend-agreed.
+* App: ~700 lines of UI nobody needs to review for policy (thread,
+  internal notes, evidence, tombstones — all presentation); 19 tests;
   5-stage check.sh, all green.

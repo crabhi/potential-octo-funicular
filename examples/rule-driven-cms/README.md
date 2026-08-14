@@ -54,6 +54,19 @@ actor↔resource relations — tenancy, assignment), per-actor attributes
 (`actor_fields`), and `has_`-opt-out for fields whose emptiness no rule
 mentions (every boolean doubles the situation space).
 
+**Multiple entity types per rule base** (note 16): child entities are
+declared under `children:` with their own states/fields/lifecycle, and
+their vocabularies import parent context opt-in (`context:` →
+`parent.state`, `parent.is_author`, parent projections). Rules and gate
+properties carry an `entity:` tag defaulting to the root, so single-entity
+rule bases are the unchanged degenerate case. The kernel joins the live
+parent row into every child decision — context-sensitive rules ("no
+comments on a closed case") are decided where the client can't get them
+wrong. The analyzer runs every check per entity. Deliberate limits: one
+level of nesting, no aggregates over children (falsifiers ME-1/ME-2/ME-6
+in note 16; the parent-delete cascade does NOT consult child delete
+rules — pinned by an engine test).
+
 ```
 ./check.sh        # everything below, one command (needs python3; pip-installs pyyaml+z3)
 ```

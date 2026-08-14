@@ -63,6 +63,19 @@ Start at `research/INDEX.md`. Scoreboards with falsifiers: `research/09`,
     scaffolding and diagnostics — good for inspecting the rule base,
     wrong as the product surface, because UX customizability is a
     first-class requirement.
+11. **Relations between ruled entities are engine work, never client
+    joins** (developer decision, 2026-08-14: "rules covering multiple
+    entity types is a must"). A rule base declares child entities
+    (`children:`) whose rules import parent context opt-in (`context:` →
+    `parent.state`, `parent.is_author`, parent projections); the kernel
+    joins the live parent row into every child decision — whoever
+    computes context IS an enforcement point, so only the kernel may.
+    Two learned sharp edges to keep respecting: (a) untagged rules apply
+    to the ROOT only, which fails OPEN for global denies — an actor-only
+    deny (e.g. deny_inactive) must be tagged for every entity and pinned
+    by per-entity gate properties; (b) parent-delete cascades do NOT
+    consult child delete rules — a child's immortality is only as strong
+    as its parent's (falsifier ME-6, note 16).
 
 ## Workflow
 

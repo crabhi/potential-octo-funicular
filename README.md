@@ -45,7 +45,7 @@ falsified two protocol designs a careful engineer believed correct
 | `examples/cms/` | **Worked example**: a CMS (roles, drafts, public access) guarded by the full pipeline — rules → oracle → model → real app | see its README |
 | `examples/rule-driven-cms/` | **Worked example, inverted framing**: the whole CMS ground-up as a rule base executed by a generic engine; Z3 analyzes the rules themselves (research note 13) | `./check.sh` |
 | `examples/taskboard/` | **End-to-end application**: Flowdeck, a multi-tenant team kanban SaaS on the generic reflected UI — 7 tickets → 150 lines of rules, zero app-specific code; honest developer-experience journal (research note 14) | `./check.sh`, `python app.py` |
-| `examples/helpdesk/` | **The guardrail-10 prototype**: Relay, a customer-support desk whose htmx UI is hand-written and FREE while every interaction is decided inside a verified kernel API; boundary held by lint (a preserved bypass variant must fail CI); research note 15 | `./check.sh`, `python app.py` |
+| `examples/helpdesk/` | **The guardrail-10 + multi-entity prototype**: Relay, a customer-support desk whose htmx UI is hand-written and FREE while every interaction is decided inside a verified kernel API; three ruled entity types in one rule base (case, comment, attachment) with context-sensitive child rules — the kernel joins the parent, never the client; boundary held by lint; research notes 15 + 16 | `./check.sh`, `python app.py` |
 
 ## Prerequisites
 

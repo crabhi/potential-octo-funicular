@@ -20,6 +20,7 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [13-rule-based-cms.md](13-rule-based-cms.md) | Rule-based systems as the programming surface: rules ARE the program, solver reviews the rule base, engine proven once; falsifiers RB1–RB5 | draft |
 | [14-developer-experience.md](14-developer-experience.md) | DX study: Flowdeck (multi-tenant kanban SaaS) built end to end as rules with a generic web UI; 4 rounds × 0.18 s, 2 real authz holes caught, frictions enumerated; falsifiers DX1–DX3 | draft |
 | [15-kernel-boundary-free-ui.md](15-kernel-boundary-free-ui.md) | Guardrail 10: the verified boundary is a function-level kernel API; the UI (htmx) is agent-authored and free; boundary lint, two-phase edits, Relay helpdesk; falsifiers KB1–KB4 | draft |
+| [16-multi-entity-rules.md](16-multi-entity-rules.md) | Rules across entity types: `children:` + `context:` — a child's rules see the parent's live state (parent.state, parent.same_org), the kernel does the join; Relay grows the thread + evidence (37,200 situations, round-1 PASS); falsifiers ME-1–ME-6 | draft |
 
 Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
 the full pipeline, formal-methods framing (spec beside code);
@@ -28,9 +29,34 @@ rule-based framing (the rule base is the program; note 13);
 `examples/taskboard/` — Flowdeck, an end-to-end SaaS app on the generic
 reflected UI, plus the honest DEVLOG (note 14); and `examples/helpdesk/` —
 Relay, the guardrail-10 prototype: a hand-written htmx UI, free above a
-verified kernel boundary (note 15).
+verified kernel boundary (note 15), grown to three ruled entity types —
+case, comment, attachment — with context-sensitive child rules (note 16).
 
 ## Change log
+
+- 2026-08-14 (multi-entity rules — the developer's second redirect of the
+  day: "Rules covering multiple entity types is a must. Comments and
+  attachments are context-sensitive."): the one-entity-per-rule-base wall
+  came down as engine work, never client joins (guardrail 10 forbids the
+  client computing context). Rule bases now declare child entities
+  (`children:`) whose vocabularies import parent context opt-in
+  (`context: [state, is_author, <parent projection>]` →
+  `parent.state`/`parent.is_author`/`parent.<name>`); rules and gate
+  properties carry `entity:` tags defaulting to the root, so existing
+  rule bases load unchanged (cms/taskboard/helpdesk gates replayed green
+  first). The kernel does the parent join on every child decision —
+  create/read/edit/transitions/visible — so "no comments on a closed
+  case" is one atom (`parent.state == "closed"`), live. Analyzer runs
+  every check per entity. Relay grew HD-8/9 (thread + evidence): 33 rules
+  over 3 entities, gate 29 ∀ + 16 ∃ + 4 gated entries + 75 steps, 37,200
+  situations backend-agreed, round-1 PASS with pre-registered predictions
+  held; un-predicted lesson: untagged global denies fail OPEN for
+  children (deny_inactive) — pinned by S28/S29 with the negative
+  direction verified. The htmx thread renders kernel lists (internal
+  notes absent for customers even by id; forged child requests 403 by
+  name). Engine cascade sharp edge pinned by test (parent delete skips
+  child delete rules — ME-6). Note 16 (falsifiers ME-1–ME-6); guardrail
+  11 recorded; slides regenerated.
 
 - 2026-08-14 (kernel boundary, free UI — the developer's redirect): the
   generic UI is out as a product surface; UX customizability is
