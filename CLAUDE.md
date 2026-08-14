@@ -49,6 +49,20 @@ Start at `research/INDEX.md`. Scoreboards with falsifiers: `research/09`,
    discipline.
 9. **Update notes and push often**; `research/INDEX.md` is the index and
    change log.
+10. **The verified boundary is a kernel API, not a UI** (developer
+    decision, 2026-08-14). Rules guard *interaction logic* behind a
+    class/function-level API (`engine/kernel.py`: every state read/write
+    decided by the rule base; refusals are typed `Denied` values naming
+    the rule). Above that boundary the UX is deliberately FREE: the
+    implementing agent hand-writes the UI (htmx server-rendered, or
+    anything) and may customize it without limit — the UI is a client of
+    the kernel, never an enforcement point, and losing a UI affordance
+    never weakens policy. Hold the boundary mechanically (boundary lint:
+    app code imports the kernel and nothing beneath it), not by
+    convention. Generated/reflected generic UIs (engine/ui.py) are
+    scaffolding and diagnostics — good for inspecting the rule base,
+    wrong as the product surface, because UX customizability is a
+    first-class requirement.
 
 ## Workflow
 
