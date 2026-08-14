@@ -95,10 +95,14 @@ sam during seeding. The rules govern even the fixtures.
    pre- and post-state, but a concurrent writer between decide and write
    is out of scope here (single SQLite connection); the P3 conformance
    harness is where that class of question lives.
-4. **`hx-vals` JSON quoting** in Python f-strings is fiddly (single-quote
-   attribute wrapping double-quote JSON) — twenty minutes of the hour went
-   to the free layer's plumbing, none to policy. That is the intended
-   asymmetry.
+4. **The free layer has its own plumbing bugs — and they stayed free.**
+   `hx-vals` JSON quoting in f-strings is fiddly, and htmx refuses to swap
+   4xx responses by default, so the kernel's honest 403 toast silently
+   never rendered until a `htmx:beforeSwap` opt-in was added (caught by a
+   screenshot, not by any gate — correctly so: *nothing was at stake but
+   pixels*; the forged-request tests proved the refusal itself all along).
+   The hour's plumbing time went entirely to presentation, none to policy.
+   That is the intended asymmetry.
 
 ## The scoreboard entry
 

@@ -82,6 +82,7 @@ def main():
             # 5. quinn presses the locked resolve anyway -> the named toast
             page.locator("details.locked button",
                          has_text="Resolve").click()
+            page.wait_for_selector(".toast.deny")
             shot("relay-denied-toast.png")
 
             browser.close()

@@ -242,6 +242,15 @@ def page(desk, actor, content):
 <body hx-boost="false">
 {sidebar(desk, actor)}
 <main id="content">{content}</main>
+<script>
+// refusals are honest 403s; htmx skips 4xx swaps by default — opt back in
+// so the kernel's named refusal lands in the page like any other response
+document.body.addEventListener('htmx:beforeSwap', function (e) {{
+  if (e.detail.xhr.status === 403 || e.detail.xhr.status === 404) {{
+    e.detail.shouldSwap = true; e.detail.isError = false;
+  }}
+}});
+</script>
 </body></html>"""
 
 
