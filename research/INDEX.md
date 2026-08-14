@@ -18,13 +18,33 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [11-fstar-llm-abstraction.md](11-fstar-llm-abstraction.md) | F* as rule language for LLM workflow? Verdict: not primary for SaaS; steal 3DGen DSL pattern | draft |
 | [12-rung5-proofs-in-code-from-spec.md](12-rung5-proofs-in-code-from-spec.md) | Rung 5 expanded: five patterns for proofs-in-code / code-from-spec in an LLM-built SaaS; Cedar/Dafny/Verus evidence; gaps we can own | draft |
 | [13-rule-based-cms.md](13-rule-based-cms.md) | Rule-based systems as the programming surface: rules ARE the program, solver reviews the rule base, engine proven once; falsifiers RB1–RB5 | draft |
+| [14-developer-experience.md](14-developer-experience.md) | DX study: Flowdeck (multi-tenant kanban SaaS) built end to end as rules with a generic web UI; 4 rounds × 0.18 s, 2 real authz holes caught, frictions enumerated; falsifiers DX1–DX3 | draft |
 
 Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
-the full pipeline, formal-methods framing (spec beside code); and
+the full pipeline, formal-methods framing (spec beside code);
 `examples/rule-driven-cms/` — the same domain rebuilt ground-up under the
-rule-based framing (the rule base is the program; note 13).
+rule-based framing (the rule base is the program; note 13); and
+`examples/taskboard/` — Flowdeck, an end-to-end SaaS app with a clickable
+UI derived from the rule base, plus the honest DEVLOG (note 14).
 
 ## Change log
+
+- 2026-08-14 (developer experience, end to end): the developer asked to
+  push on DX — build a full example application and report how development
+  *feels*. Built `examples/taskboard/` (Flowdeck, multi-tenant team
+  kanban): 7 tickets → 18 rules → frozen gate (13 ∀ / 8 ∃ / 2 gated
+  entries / 5 features). Four analyzer rounds at ~0.18 s caught two real
+  authorization holes (anonymous-assignee start via unguarded
+  assignee_moves; admin_oversees granting staff the team's work), the
+  order-naming of overlapping denies, and a provably dead containment
+  rule; the real round-2 draft is preserved and gated forever. Generic
+  engine growth: actor_fields, actor_matches_field projections (tenancy +
+  assignment as booleans), has_-opt-out (vocabulary budget), and a
+  **generic web UI** (engine/ui.py — board from lifecycle, buttons from
+  the decision function, named-403 banners; the CMS gained a UI without a
+  line changed). Screenshots in docs/slides/img/. Note 14 (falsifiers
+  DX1–DX3); DEVLOG in the example; slides regenerated ground-up with the
+  DX narrative and screenshots.
 
 - 2026-08-11 (slides reworked): deck regenerated ground-up with a new
   structure — the rule-driven experiments lead, with real code on the

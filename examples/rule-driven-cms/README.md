@@ -19,11 +19,30 @@ application**:
  engine/ + analysis/         generic, domain-free, reusable                 ~1010 lines
 ```
 
-The engine (HTTP server, SQLite store, decision function) contains **no
-domain words** — grep it for `article`, `publish`, `editor`: they occur
-only in docstrings. The proof that it's generic is executable: ruleset
-`tickets/` is a *different service* (support tickets) served and analyzed
-by the same engine, byte for byte.
+The engine (HTTP server, SQLite store, decision function, **web UI**)
+contains **no domain words** — grep it for `article`, `publish`, `editor`:
+they occur only in docstrings. The proof that it's generic is executable:
+ruleset `tickets/` is a *different service* (support tickets) served and
+analyzed by the same engine, byte for byte — and `../taskboard/` is a
+fourth, complete SaaS application (with the DX study, note 14) running on
+it from another directory.
+
+Since the taskboard episode the engine also serves a **browser UI derived
+from the rule base** (`--ui`, engine/ui.py): board columns from the
+lifecycle, cards filtered by the read rule, action buttons enabled/greyed
+by the decision function with the denying rule named, forms from fields,
+and `/ui/rules` rendering the program. Try it on the CMS:
+
+```
+python -m engine.server --rules rulesets/cms --db /tmp/cms.db --ui \
+    --seed rulesets/cms/features.yaml     # then open http://127.0.0.1:8080/ui
+```
+
+Vocabulary mechanisms added by the transfer episodes (all generic):
+declared projections (`date_passed` for time; `actor_matches_field` for
+actor↔resource relations — tenancy, assignment), per-actor attributes
+(`actor_fields`), and `has_`-opt-out for fields whose emptiness no rule
+mentions (every boolean doubles the situation space).
 
 ```
 ./check.sh        # everything below, one command (needs python3; pip-installs pyyaml+z3)
