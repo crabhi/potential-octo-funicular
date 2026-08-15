@@ -34,6 +34,32 @@ case, comment, attachment — with context-sensitive child rules (note 16).
 
 ## Change log
 
+- 2026-08-15 (the field manual + Clearance): the developer asked for the
+  best approaches by DX, velocity and safety, written up as a manual for
+  an experienced developer new to the concept — then redirected: the
+  three candidates (rules-as-the-program behind the kernel; models
+  before code; the frozen gate + agent loop) are layers of ONE method,
+  so one compound manual with the composition first-class.
+  `docs/manual.md` written: orientation (the inversion, why three
+  layers), Layer 1 taught over a new sixth service built for the purpose
+  (`examples/approvals/` — Clearance, expense claims: 10 rules, 3,456
+  situations, gate 10 ∀ + 4 ∃ + 29 steps, preserved round-1 draft whose
+  four-eyes deny is provably DEAD and whose P3 witness is IMPOSSIBLE —
+  check.sh requires the FAIL), Layer 2 (the migration model, the two
+  falsified designs, the escalation ladder with real costs, spec-directed
+  conformance), Layer 3 (freeze mechanics verbatim, the episode-1-vs-2
+  controlled comparison, the optimization loop, Grant<Op> tokens), the
+  composition part (concern-routing table, one-vocabulary rule, every
+  seam mechanically held, the real cross-layer ticket, the ratchet, what
+  stays human, adoption path), and honest costs (friction ledger with
+  statuses, falsifier index, when not to use, recorded dead ends). All
+  numbers re-verified against the repo (situation aggregate 111,312 over
+  six rule bases, run fresh); every transcript is real output. Generic
+  engine fix surfaced by Clearance: live_demo's visibility probe assumed
+  an "admin" role exists — now unions every declared actor's view (all
+  five prior services replayed green). Root README de-staled (P4/P5 no
+  longer "planned"; manual + approvals rows added).
+
 - 2026-08-14 (multi-entity rules — the developer's second redirect of the
   day: "Rules covering multiple entity types is a must. Comments and
   attachments are context-sensitive."): the one-entity-per-rule-base wall
