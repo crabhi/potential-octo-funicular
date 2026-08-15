@@ -4,13 +4,12 @@
 Audience: engineers without prior formal-verification background.
 Regenerated ground-up from the current repository state (see CLAUDE.md
 workflow rule: the deck always describes the repo, never accretes).
-This edition leads with act V (multi-entity rules, note 16): the
-developer's directive that rules must cover multiple entity types —
-comments and attachments are context-sensitive — and what it took:
-child entities with parent context in one rule base, the kernel doing
-the join, the analyzer running per entity, and Relay growing a ruled
-thread + evidence with the screenshots and forged-request tests to
-prove it. Acts I–IV are compressed to evidence.
+This edition leads with act VI (the field manual): the developer asked
+for the best approaches by DX, velocity and safety written up as
+teaching manuals — then redirected: they are layers of ONE method, so
+one compound manual with the composition first-class. docs/manual.md
+is the deliverable; Clearance (examples/approvals/) is its executable
+worked example. Acts I–V are compressed to evidence.
 Usage: python3 make_slides.py  ->  formal-guardrails-slides.pdf
 (needs reportlab + pillow; screenshots come from img/, regenerate with
 examples/helpdesk/screenshots.py and examples/taskboard/screenshots.py)
@@ -27,7 +26,7 @@ INK = HexColor("#1F2A3A")
 MUTED = HexColor("#5C6B7E")
 ACCENT = HexColor("#1F6F6B")      # teal
 ACCENT_D = HexColor("#155250")
-FREE = HexColor("#6C5CE7")        # violet — the free UI layer (Relay brand)
+FREE = HexColor("#6C5CE7")        # violet — the free UI layer / act highlights
 WARN = HexColor("#B4552D")        # rust — counterexamples / failures
 OK = HexColor("#3A7D44")
 PANEL = HexColor("#F1F4F7")
@@ -84,7 +83,7 @@ def footer(title_page=False):
         return
     c.setFont(F, 8.5)
     c.setFillColor(MUTED)
-    c.drawString(40, 20, "Formal guardrails for LLM agents · multi-entity rules · 2026-08-14")
+    c.drawString(40, 20, "Formal guardrails for LLM agents · the field manual · 2026-08-15")
     c.drawRightString(W - 40, 20, str(page[0]))
 
 
@@ -176,17 +175,17 @@ c.setFillColor(FREE)
 c.rect(0, 118, W, 5, fill=1, stroke=0)
 c.setFillColor(WHITE)
 c.setFont(FB, 33)
-c.drawString(70, 350, "One rule base, three entity types")
+c.drawString(70, 350, "The method, written down")
 c.setFont(FB, 20)
 c.setFillColor(HexColor("#B3A8FF"))
-c.drawString(70, 315, "formal guardrails for LLM agents, act V: rules across entities")
+c.drawString(70, 315, "formal guardrails for LLM agents, act VI: the field manual")
 c.setFont(F, 15)
 c.setFillColor(HexColor("#AFC3CF"))
-c.drawString(70, 264, "Relay's cases now carry ruled threads and evidence: a comment's legality depends on its case's")
-c.drawString(70, 242, "live state and org — decided in the kernel, which joins the parent. The client never computes context.")
+c.drawString(70, 264, "docs/manual.md — one compound manual teaching the three layers as one method: rules as the")
+c.drawString(70, 242, "program, models before code, the frozen gate + agent loop — with the composition first-class.")
 c.setFont(F, 12)
-c.drawString(70, 172, "With pre-registered predictions, one un-predicted fail-open lesson, screenshots of internal notes")
-c.drawString(70, 154, "that do not exist for customers, and forged requests refused by name. August 2026.")
+c.drawString(70, 172, "Every transcript is real output; the worked example is a sixth committed service (Clearance) whose")
+c.drawString(70, 154, "check.sh must PASS its gate and FAIL its preserved round-1 draft. August 2026.")
 c.setFont(F, 11)
 c.setFillColor(HexColor("#7E93A3"))
 c.drawString(70, 88, "No formal-methods background assumed — the four concepts you need are on slide 3.")
@@ -226,9 +225,10 @@ data = [
      "cases.” You already write these — in comments, runbooks and "
      "post-mortems. Here they become machine-checkable."),
     ("Model", "A small, faithful board-game version of your system: its "
-     "states and legal moves. Here the “model” is not beside the system — "
-     "the rule base IS both the model and the running program."),
-    ("Checker", "A tireless adversary (here: the Z3 solver). It considers "
+     "states and legal moves. In the rule-driven layer the “model” is not "
+     "beside the system — the rule base IS both the model and the running "
+     "program."),
+    ("Checker", "A tireless adversary (Z3, Apalache, TLC). It considers "
      "every situation the rules allow — tens of thousands you would never "
      "test — hunting for one that breaks an invariant."),
     ("Counterexample", "The checker's proof of failure: the exact situation "
@@ -311,8 +311,8 @@ bullets(604, 412, [
     "Redundant rules proven dead and deleted: the solver shrinks rule bases, reversing 1980s rule rot.",
 ], 300, size=9.3, gap=5)
 text_block(40, 96,
-           "Act III built a full product (Flowdeck) to measure the developer experience — and surfaced the UI tension. "
-           "Act IV resolved it with the kernel boundary. Act V, this deck's lead, is what came next.",
+           "Act III built a full product to measure DX. Act IV freed the UI over a kernel boundary. Act V grew relations "
+           "between ruled entities. Act VI — this deck's lead — wrote the whole method down as one manual.",
            size=11.5, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
@@ -395,16 +395,6 @@ text_block(40, 82,
 footer(); c.showPage()
 
 # ----------------------------------------------------------------- slide 8
-image_slide("Act IV · the product", "Nobody generated this — and nobody reviewed it for policy",
-            "relay-sam-working.png",
-            "The agent-written surface: dark sidebar, queue navigation with live per-persona counts (the list IS the "
-            "read rule), severity dots, org chips, SLA badges. htmx partial swaps against the kernel — ~760 lines of UI "
-            "in which no policy can live.",
-            "python examples/helpdesk/app.py → http://127.0.0.1:8810/ — the demo desk is seeded THROUGH the kernel as "
-            "the real personas, so a seed that violates policy cannot exist (the breached seed case had to route its "
-            "resolution through the lead).")
-
-# ----------------------------------------------------------------- slide 9
 image_slide("Act IV · a refusal, end to end", "Press the locked button anyway: the ticket sentence answers",
             "relay-denied-toast.png",
             "quinn (staff, not the assignee) presses the locked Resolve: 403 — Refused: rule only_assignee_resolves, "
@@ -413,279 +403,216 @@ image_slide("Act IV · a refusal, end to end", "Press the locked button anyway: 
             "Affordances, not permissions: one kernel call powers the allowed buttons AND the locked disclosures; the "
             "presentation philosophy is the UI author's choice, the decision never is.")
 
-# ---------------------------------------------------------------- slide 10
-header("Act V · the redirect", "“Comments and attachments are context-sensitive” — the wall comes down")
-panel(40, H - 226, 430, 130, fill=HexColor("#F9F1EC"))
-c.setFont(FB, 11)
-c.setFillColor(WARN)
-c.drawString(54, H - 116, "The previous deck's own sharp-edge slide:")
-text_block(54, H - 134,
-           "“One entity per rule base — Relay's cases fit one rule base; case "
-           "comments/attachments would force relations between ruled entities "
-           "— N rule bases + client joins, or engine work.”",
-           size=10, width=402, font=FI)
-text_block(54, H - 196,
-           "The developer picked: engine work. “Rules covering multiple "
-           "entity types is a must.”", size=10, width=402, color=WARN)
-panel(490, H - 226, 430, 130)
-c.setFont(FB, 11)
-c.setFillColor(ACCENT_D)
-c.drawString(504, H - 116, "Why client joins were never an option")
-text_block(504, H - 134,
-           "Whoever computes “may dana post here?” from two rule bases plus a "
-           "join IS an enforcement point — and guardrail 10 exists to keep "
-           "the UI from ever being one. If relations live in the client, the "
-           "boundary is gone.",
-           size=10, width=402)
-y = text_block(40, H - 252,
-               "What “context-sensitive” means concretely: a comment's legality depends on the CASE it belongs to — its "
-               "live state and its org. “No comments on a closed case”, “the org wall extends to the thread”, “internal "
-               "notes are staff-only” are rules about a relation between two entity types:",
-               size=11.5, width=880)
-code_block(40, y - 8, 880, [
-    ("- id: sealed_thread                            - id: org_walls_thread", ""),
-    ("  entity: [comment, attachment]                  entity: [comment, attachment]", ""),
-    ("  effect: deny                                    effect: deny", ""),
-    ("  when: 'parent.state == \"closed\"                 when: 'actor.role == \"customer\"", ""),
-    ("         and action != \"read\"'                          and not parent.same_org'", ""),
-], size=9.4)
-text_block(40, 74,
-           "parent.state and parent.same_org are the child's window onto its parent — the whole relation mechanism.",
-           size=10.5, width=880, color=ACCENT_D)
-footer(); c.showPage()
-
-# ---------------------------------------------------------------- slide 11
-header("Act V · the design", "Children declare a window onto their parent; the kernel does the join")
+# ----------------------------------------------------------------- slide 9
+header("Act V in one slide (note 16)", "One rule base, three entity types — the kernel joins the parent")
 code_block(40, H - 96, 470, [
-    ("# rules.yaml — ONE rule base, three entity types", "dim"),
-    ("entity: case            # the root, unchanged", ""),
     ("children:", ""),
     ("  - entity: comment", ""),
-    ("    states: [posted, redacted]", ""),
-    ("    fields: [body, internal]", ""),
     ("    context: [state, same_org]   # opt-in, per atom", "cmd"),
-    ("    lifecycle:", ""),
-    ("      transitions:", ""),
-    ("        - {action: post,   from: none,   to: posted}", ""),
-    ("        - {action: redact, from: posted, to: redacted}", ""),
-    ("  - entity: attachment", ""),
-    ("    states: [attached, removed]", ""),
-    ("    fields: [filename]", ""),
-    ("    context: [state, same_org]", ""),
-], size=8.2)
-panel(540, 150, 380, 306)
+    "",
+    ("- id: sealed_thread", ""),
+    ("  entity: [comment, attachment]", ""),
+    ("  effect: deny", ""),
+    ("  when: 'parent.state == \"closed\"", ""),
+    ("         and action != \"read\"'", ""),
+    "",
+    ("# the kernel joins the live parent into the decision:", "dim"),
+    (">>> desk.create(dana, {\"body\": \"one more thing\"},", ""),
+    ("...             entity=\"comment\", parent_id=closed_case)", ""),
+    ("kernel.Denied: denied by sealed_thread", "fail"),
+], size=8.8)
+panel(540, 208, 380, 248)
 c.setFont(FB, 11.5)
 c.setFillColor(ACCENT_D)
-c.drawString(554, 436, "The mechanism, in four facts")
-bullets(554, 412, [
-    "Each entity gets its OWN situation vocabulary; `context:` imports parent atoms one by one (every boolean doubles the space — the budget discipline survives): parent.state, parent.is_author, any parent projection.",
-    "Rules and gate properties carry an entity: tag, defaulting to the root — growing children touched ZERO existing rules and zero frozen gate lines.",
-    "The kernel joins the live parent row into every child decision: create(actor, fields, entity=\"comment\", parent_id=case). The client cannot compute context wrong because it never computes it.",
-    "Deliberate limits, stated up front: one level of nesting, one parent per child, NO aggregates (“close only if no open comments” is not expressible — see the sharp edges).",
-], 350, size=9.2, gap=6)
-text_block(40, 96,
-           "Single-entity rule bases are the unchanged degenerate case: cms, tickets, receivables and Flowdeck replayed "
-           "green on the rewritten engine BEFORE anything new was written. Back-compat proven, not assumed.",
+c.drawString(554, 434, "What the episode proved")
+bullets(554, 410, [
+    "A comment's legality depends on its case's LIVE state and org — decided in the kernel, which joins the parent row. The client never computes context (it would be an enforcement point).",
+    "Per-entity analyzer, round-1 PASS with pre-registered predictions held; internal notes do not exist for customers — THREAD (3) vs THREAD (2), even by forged id.",
+    "The un-predicted lesson: untagged global denies fail OPEN for children (deny_inactive) — tagged, pinned by S28/S29, negative direction verified. Guardrail 11(a).",
+    "Sharp edges recorded as falsifiers ME-1–6: no aggregates (a frame problem), cascades skip child delete rules, field-level visibility stays UI-trust.",
+], 350, size=9.0, gap=6)
+yy = 172
+x = 40
+for t in ["33 rules · 3 entities", "37,200 situations", "0 engine domain lines", "forged requests: 403 by name"]:
+    x = chip(x, yy, t) + 8
+text_block(40, 140,
+           "“A closed case seals its thread” is one atom, checked in all 37,200 situations — not a flag the UI remembers "
+           "to sync. Full story: research/16-multi-entity-rules.md, examples/helpdesk/.",
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
+# ---------------------------------------------------------------- slide 10
+image_slide("Act V · the read rule, visible", "Same case: staff see THREAD (3); the customer sees THREAD (2)",
+            "relay-dana-thread.png",
+            "dana's view of case #1: one comment fewer, no internal toggle. Not CSS hiding — visible() never returned "
+            "the internal note, get() by forged id raises Denied(internal_is_staff_only), and the forged POST with "
+            "internal=yes comes back 403. S15 proves no allowed action ever touches an internal note outside staff.",
+            "The count in the heading is the architecture in two characters: the list IS the read rule, applied by the "
+            "kernel — the UI invented the layout, the rules decided the content.")
+
+# ---------------------------------------------------------------- slide 11
+header("Act VI · the redirect", "“Three best approaches” → they are layers of ONE method")
+text_block(40, H - 100,
+           "The developer asked for the best approaches by developer experience, velocity and safety, each written up as "
+           "a manual — then redirected: if they are layers of one method, compound them into ONE manual and care about "
+           "how they compose. The three layers, by what they guard:",
+           size=11.5, width=880)
+layers6 = [
+    ("LAYER 1 — rules are the program", OK,
+     "Every single-request decision: authz, tenancy, lifecycle, visibility, document discipline. The rule base is the "
+     "program; Z3 checks it exhaustively — both directions — and a generic kernel enforces it under a free UI. Where "
+     "you live day to day."),
+    ("LAYER 2 — models before code", ACCENT_D,
+     "Everything that only goes wrong across time and interleavings: migrations under traffic, jobs, retries. Model "
+     "the design (Quint), let the checker attack it, escalate the proof ladder as needed, then hold the real system "
+     "to the same invariants with a conformance harness. Episodic."),
+    ("LAYER 3 — the frozen gate + agent loop", FREE,
+     "How ALL code gets written: agents edit freely inside a mechanically frozen spec; counterexamples are the repair "
+     "signal; objectives (speed, cost) live outside the gate. Nobody reviews agent diffs — humans review specs and "
+     "counterexamples. The meta-layer."),
+]
+yy = H - 170
+for t, col, b in layers6:
+    panel(40, yy - 84, 880, 84)
+    c.setFillColor(col)
+    c.rect(40, yy - 84, 6, 84, fill=1, stroke=0)
+    c.setFont(FB, 11.5)
+    c.setFillColor(col)
+    c.drawString(58, yy - 20, t)
+    text_block(58, yy - 36, b, size=9.6, width=840)
+    yy -= 92
+text_block(40, 84,
+           "Different failure modes need different engines — a wrong deny, a race, and a lazy agent “fix” are three "
+           "different animals. The composition rules (which layer owns which concern, one vocabulary end to end, every "
+           "seam mechanically held) are what make this a method rather than three tools.",
+           size=10.5, width=880, color=ACCENT_D)
+footer(); c.showPage()
+
 # ---------------------------------------------------------------- slide 12
-header("Act V · one atom seals everything", "Close the case; the very next post meets the deny — live")
-code_block(40, H - 96, 500, [
-    ("# the same call, before and after the case closes", "dim"),
-    (">>> desk.create(priya, {\"body\": \"confirmed fixed\"},", ""),
-    ("...     entity=\"comment\", parent_id=case_id)", ""),
-    ("{'id': 7, 'state': 'posted', ...}     # resolved: talks", "ok"),
-    "",
-    (">>> desk.act(noor, \"close\", case_id)  # the QA step", ""),
-    (">>> desk.create(priya, {\"body\": \"one more thing\"},", ""),
-    ("...     entity=\"comment\", parent_id=case_id)", ""),
-    ("kernel.Denied: denied by sealed_thread", "fail"),
-    "",
-    (">>> desk.visible(priya, entity=\"comment\",", ""),
-    ("...              parent_id=case_id)", ""),
-    ("[<the whole thread>]   # readable forever (P13)", "ok"),
-], size=8.4)
-panel(570, 200, 350, 254)
+header("Act VI · the manual", "docs/manual.md — 1,549 lines, every claim executable")
+panel(40, 216, 430, 240)
 c.setFont(FB, 11.5)
 c.setFillColor(ACCENT_D)
-c.drawString(584, 432, "Why this is the interesting part")
-bullets(584, 408, [
-    "One deny, two entities, four verbs sealed: posting, redaction, attaching, removal — and reads deliberately NOT.",
-    "The industry alternative is a `sealed` flag denormalized onto every child row, plus the sync bugs it breeds. Here there is nothing to sync: child rules read the LIVE parent.",
-    "A resolved case still talks (the customer may dispute, HD-4) but takes no new evidence (fresh_evidence_only) — two different context rules, one vocabulary.",
-    "All of it frozen: feat_sealed_evidence replays 19 steps through resolve → close, refusals expected by name.",
-], 320, size=9.2, gap=6)
-text_block(40, 120,
-           "The seed data lives under the same law: the demo threads are written BEFORE their case closes, because "
-           "sealed_thread refuses late seed comments exactly as it refuses late real ones. The same seal meets forged "
-           "HTTP on slide 18: POST into the closed case → 403, sealed_thread, nothing written.",
+c.drawString(54, 434, "The shape")
+bullets(54, 410, [
+    "Part 0 — orientation: the inversion (spec durable, code cheap), why three layers, the numbers up front.",
+    "Part 1 — the rules layer, taught by building Clearance line by line: vocabulary as a budget, the two disciplines, the gate in three directions, the kernel, relations.",
+    "Part 2 — models before code: the migration model, the two falsified designs, the escalation ladder, conformance.",
+    "Part 3 — the frozen gate + loop: freeze mechanics, the controlled experiment, Grant<Op> tokens.",
+    "Part 4 — composition: the routing table, one vocabulary, the ratchet, what stays human, adoption path.",
+    "Part 5 — honest costs: friction ledger, falsifier index, when NOT to use this, recorded dead ends.",
+], 402, size=8.8, gap=5)
+panel(510, 216, 410, 240)
+c.setFont(FB, 11.5)
+c.setFillColor(ACCENT_D)
+c.drawString(524, 434, "What makes it a manual, not a pitch")
+bullets(524, 410, [
+    "Written for an experienced developer with NO formal-methods background: the workflow, the syntax by example, day-2 operations, the failure modes.",
+    "Every transcript is real output — the analyzer PASS, the round-1 FAIL, the episode logs — regenerated for the manual, not quoted from memory.",
+    "The worked example is a real sixth service, committed with its own one-command check (next slide).",
+    "The honest-costs part cites only recorded evidence: the DEVLOG friction ledger with statuses, the falsifiers, the numbers re-verified fresh (111,312 situations across six rule bases).",
+    "DX, velocity and safety get an explicit ledger per layer, and for the whole.",
+], 382, size=8.8, gap=5)
+text_block(40, 178,
+           "The manual is now the repository's front door: the root README points at it first, and every example "
+           "directory points back at the part that teaches it. Adoption is staged (Part 4.7): gate one risky surface, "
+           "move enforcement into the kernel, put the Layer-3 gate on one repo, reach for models at the first migration.",
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 13
-header("Act V · the analyzer, per entity", "Round 2: predictions registered first — then PASS")
+header("Act VI · Clearance", "The worked example is executable — including its own round-1 bug")
 code_block(40, H - 96, 500, [
-    ("$ analyze rulesets/helpdesk          # round 2, ~0.4 s", "cmd"),
-    ("rules: 33 (16 deny, 17 allow) | entities: 3", ""),
-    ("situation space: 37200 (case: 19200,", ""),
-    ("    comment: 12000, attachment: 6000)", ""),
-    ("ok: all 33 rules are effectual", "ok"),
-    ("ok  [comment]    S14_threads_follow_org_walls ...", "ok"),
-    ("ok  [comment]    S17_comments_immutable (no deny rule)", "ok"),
-    ("ok  [attachment] S22_evidence_only_while_working ...", "ok"),
-    ("ok  [comment] P13_thread_outlives_closure", "ok"),
-    ("    witness: {action: read, parent.state: closed, ...}", "dim"),
-    ("ok: 11 transitions live, all 9 states reachable,", "ok"),
-    ("    gated entries respected", "ok"),
-    ("ok  feat_thread (14)  feat_sealed_evidence (19) ...", "ok"),
-    ("VERDICT: PASS (0 findings)", "ok"),
-], size=8.2)
-panel(570, 172, 350, 284)
+    ("$ analyze rulesets/approvals-round1 \\", "cmd"),
+    ("      --gate rulesets/approvals      # the frozen gate", "cmd"),
+    ("FAIL DEAD deny rule 'no_self_decision': it never", "fail"),
+    ("     refuses anything another rule would have allowed", "fail"),
+    ("ok   S5_no_self_decision      # passes — VACUOUSLY", "ok"),
+    ("FAIL P3_managers_expense_too: IMPOSSIBLE —", "fail"),
+    ("     no allow rule ever grants it", "fail"),
+    ("FAIL feat_four_eyes: step 1 (mia create):", "fail"),
+    ("     expected allow, got deny (rule: default_deny)", "fail"),
+    ("VERDICT: FAIL (3 finding(s))", "fail"),
+    "",
+    ("$ analyze rulesets/approvals    # the fixed rule base", "cmd"),
+    ("VERDICT: PASS (0 findings)      # 3,456 situations", "ok"),
+], size=8.4, dark=True)
+panel(570, 190, 350, 266)
 c.setFont(FB, 11.5)
 c.setFillColor(ACCENT_D)
-c.drawString(584, 434, "Pre-registered in the DEVLOG — all held")
+c.drawString(584, 434, "The teaching moment, real")
 bullets(584, 410, [
-    "P-c: zero dead rules again. The new containments (comments never edited, only leads redact, the robot never reads back, removal is author-or-lead) again have NO deny rules — S17/S18/S19/S23/S24/S26 prove each universally.",
-    "P-d: the 13 case ∀-properties and 9 case witnesses are byte-identical and still green.",
-    "P-e: engine domain lines for the thread + evidence: 0 — nothing in the engine says comment or seal.",
-    "Unpredicted gain: P13's witness — the solver picked a CLOSED parent to prove the record survives. “Readable after the parent moved on” used to be unstatable; parent.state made it a one-liner.",
-], 320, size=9.0, gap=6)
-text_block(40, 112,
-           "Every check runs per entity, in each entity's own situation space — a child's includes every parent-context "
-           "combination a rule could ever see. Two rounds, two green gates, five predictions held — and the one lesson "
-           "nobody predicted is the next slide.",
+    "Clearance: expense claims — org walls, receipts, four-eyes approval, finance-only payment, sealed records. 10 rules, 3,456 situations, gate 10 ∀ + 4 ∃ + 29 steps.",
+    "The real round-1 draft let only employees file — so nobody could ever author-and-decide: “nobody decides their own claim” held VACUOUSLY, the deny was provably dead, the four-eyes feature could not exist.",
+    "Safety alone said everything was fine. The possibility direction and the dead-rule check caught it — gates need both directions, demonstrated in one transcript.",
+    "The fix was a requirement fix (managers expense too), and the broken draft is gated forever: check.sh stage 2 REQUIRES this FAIL.",
+], 320, size=8.9, gap=5)
+yy = 168
+x = 40
+for t in ["examples/approvals/", "check.sh: PASS + required FAIL + HTTP replay", "manual Part 1 builds it line by line"]:
+    x = chip(x, yy, t) + 8
+text_block(40, 136,
+           "The manual quotes this transcript verbatim, and the FAIL is a required CI stage — the teaching example "
+           "cannot rot, because rotting would break the build.",
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 14
-header("Act V · the un-predicted lesson", "Untagged global denies fail OPEN — caught, tagged, pinned")
-code_block(40, H - 96, 430, [
-    ("# the ONE existing rule this episode touched:", "dim"),
-    ("- id: deny_inactive", ""),
-    ("  description: \"A deactivated account can", ""),
-    ("    do nothing at all.\"", ""),
-    ("  entity: [case, comment, attachment]   # ← new", "cmd"),
-    ("  effect: deny", ""),
-    ("  when: 'not actor.active'", ""),
-    "",
-    ("# pinned the same hour, per child:", "dim"),
-    ("- id: S28_inactive_locked_out_of_threads", ""),
-    ("  entity: comment", ""),
-    ("  requires: 'actor.active'", ""),
-], size=8.6)
-code_block(490, H - 96, 430, [
-    ("$ # verification: untag the deny, re-run the gate", "cmd"),
-    ("FAIL [comment]    S28_inactive_locked_out_of_threads", "fail"),
-    ("     counterexample: {role: customer, action: post,", "dim"),
-    ("      active: false, parent.same_org: true, ...}", "dim"),
-    ("FAIL [attachment] S29_inactive_locked_out_of_evidence", "fail"),
-    ("FAIL feat_thread: step 6 (lex read):", "fail"),
-    ("     expected deny by deny_inactive, got allow", "fail"),
-    ("VERDICT: FAIL (3 findings)", "fail"),
-], dark=True, size=8.4)
-bullets(40, 226, [
-    "Untagged rules apply to the ROOT only. That default fails SAFE for allows (a child grants nothing by silence) — and fails OPEN for global denies: without the tag, a deactivated customer could have posted comments.",
-    "The fix is one line; the lesson is mechanical: S28/S29 joined the gate, and the negative direction was verified by temporarily untagging the rule — the analyzer produced exactly the counterexamples the bug would have shipped.",
-    "Recorded as guardrail 11(a) and falsifier ME-5: an actor-only deny not tagged for every entity deserves a load-time warning. This slide exists because guardrail 7 says falsified assumptions get recorded, not smoothed over.",
-], 880, size=10.2, gap=6)
-footer(); c.showPage()
-
-# --------------------------------------------------------- slides 15–17: Relay
-image_slide("Act V · the thread, as staff", "sam sees THREAD (3): the internal note, amber and labeled",
-            "relay-sam-thread.png",
-            "The thread renders kernel lists: dana's report, sam's internal note (“Suspect SAML clock skew…”), the "
-            "robot's filed email. The internal checkbox next to Post is shown to staff as a presentation choice — the "
-            "kernel, not the checkbox, is what keeps customers out.",
-            "Every comment card, tag and button comes from kernel.visible/affordances(entity=\"comment\") — the UI "
-            "invented the layout, the rules decided the content.")
-
-image_slide("Act V · the same case, as the customer", "dana sees THREAD (2): the internal note does not exist",
-            "relay-dana-thread.png",
-            "Same case, same thread — one comment fewer, no internal toggle. Not CSS hiding: visible() never returned "
-            "the note, get() by forged id raises Denied(internal_is_staff_only), and the forged POST with internal=yes "
-            "comes back 403. S15 proves no allowed action ever touches an internal note outside staff.",
-            "The count in the heading is the read rule made visible: THREAD (3) vs THREAD (2) is the whole "
-            "architecture in two characters.")
-
-image_slide("Act V · the sealed record", "A closed case: everything readable, nothing changeable — by rule",
-            "relay-sealed-record.png",
-            "Case #6 as dana: the evidence renders (welcome_email.png), and both forms are replaced by the sealing "
-            "rule's name — “posting is refused right now by sealed_thread”, “new evidence is refused right now by "
-            "sealed_thread”. THREAD (0) is itself correct: the only comment is a lead's internal note, invisible to "
-            "customers even in the record.",
-            "S16/S25 prove the seal universally; P13 proves the record stays readable. The seed had to write this "
-            "thread BEFORE closing the case — sealed_thread refuses late seed data exactly as it refuses late users.")
-
-# ---------------------------------------------------------------- slide 18
-header("Act V · forged child requests", "The internal flag, the robot's redact, the late post: 403 by name")
-code_block(40, H - 96, 500, [
-    ("# tests/test_relay.py — forge what the UI never renders", "dim"),
-    ("# dana is shown no internal checkbox — send the field:", "dim"),
-    ("fetch(\"POST\", f\"/case/{id}/comment\", \"dana\",", ""),
-    ("      body=\"body=sneaky&internal=yes\")", ""),
-    ("assert 403 and 'internal_is_staff_only'", "ok"),
-    "",
-    ("# the robot forges a redact it was never shown:", "dim"),
-    ("fetch(\"POST\", f\"/comment/{cid}/act\", \"postbot\",", ""),
-    ("      body=\"action=redact\")", ""),
-    ("assert 403 and 'default_deny'", "ok"),
-    "",
-    ("# posting into the seed's CLOSED case:", "dim"),
-    ("fetch(\"POST\", f\"/case/{closed}/attach\", \"dana\",", ""),
-    ("      body=\"filename=late.log\")", ""),
-    ("assert 403 and 'sealed_thread'", "ok"),
-], size=8.4)
-panel(570, 208, 350, 248)
+header("Act VI · composition", "One vocabulary, one ratchet — a real ticket across all three layers")
+panel(40, 208, 440, 248)
 c.setFont(FB, 11.5)
 c.setFillColor(ACCENT_D)
-c.drawString(584, 434, "Three layers, one vocabulary")
-bullets(584, 410, [
-    "Model: exhaustive two-backend agreement now spans all three entities — 37,200 situations, every rule, both the runtime evaluator and the Z3 compilation.",
-    "Kernel: internal notes absent from customers' lists AND refused by forged id; org walls via the parent; live sealing on close; author-or-lead removal; robot contained on children.",
-    "HTTP: the forged requests left — all 403, all naming the rule, nothing written. 19 tests; check.sh runs all of it plus the gate and the boundary lint in both directions.",
-], 320, size=9.2, gap=6)
-text_block(40, 122,
-           "This suite is why the UI's freedom costs nothing: what the client never renders, the kernel still refuses — "
-           "under the same rule id the ticket, the gate, the solver counterexample and the toast all use.",
-           size=10.5, width=880, color=MUTED)
+c.drawString(54, 434, "Which layer owns which concern")
+bullets(54, 410, [
+    "“Only X may…”, “never…”, “X sees only…” (one request decides it) → Layer 1 rule + ∀-property.",
+    "“…even while the migration runs”, “two requests at once”, “eventually” → Layer 2 model, then conformance.",
+    "“The UI should…”, glue, engine growth → free code, agent-built under the Layer 3 gate.",
+    "“Sum/count of…”, fuzzy matching → a projection at the boundary, or deliberately client-side — RECORDED either way.",
+    "Incidents: reproduce the bug as a gate item, in gate vocabulary; freeze it; only then repair. The gate only ever tightens.",
+], 412, size=9.2, gap=6)
+code_block(520, H - 96, 400, [
+    ("# the column rename, end to end (all committed):", "dim"),
+    ("falsified design #2        (L2 model trace)", ""),
+    ("  -> seeded repair task            (L3)", ""),
+    ("    -> partial fix exposes the", ""),
+    ("       safety-only gate gap", "fail"),
+    ("      -> gap becomes frozen feature", ""),
+    ("         runs + witness   (the ratchet)", "cmd"),
+    ("        -> full fix, 1 round,", ""),
+    ("           same generic prompt", "ok"),
+    ("          -> inductive -> any-size ->", ""),
+    ("             liveness proofs (L2 ladder)", "ok"),
+    "",
+    ("# every arrow is a committed artifact:", "dim"),
+    ("# p1, p4/episodes/, p6, p7", "dim"),
+], size=9.0)
+text_block(40, 180,
+           "Every seam has a mechanical check: rules↔runtime by exhaustive two-backend agreement, kernel↔UI by the "
+           "boundary lint (bypass variant must FAIL), model↔code by the conformance harness, spec↔agents by the frozen "
+           "region diff. The one unsound seam — NL ticket ↔ formal rule — is held by grounded human review plus the "
+           "gate's deliberate redundancy. If a seam is held by discipline, it is already leaking.",
+           size=10.5, width=880)
+text_block(40, 108,
+           "One ghost variable (lastReadOk) carries the correctness story from the first model trace to the conformance "
+           "assertion to the frozen repair gate. That continuity — not any single layer — is the method.",
+           size=10.5, width=880, color=ACCENT_D)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 19
-header("Act V · sharp edges", "Kept honest — each one is a falsifier with a design attached")
-fr = [
-    ("Aggregates are not expressible (ME-1)", "“Close only if no open comments” needs a parent rule over child sets. An aggregate atom is NOT a free boolean — it couples the parent's space to the child rules (a frame problem), so this is genuinely hard, not missing syntax. Sound cut when a ticket forces it: kernel-computed aggregate projections, runtime-sound, analyzer-conservative."),
-    ("Parent-delete cascades skip child rules (ME-6)", "Deleting a parent removes children WITHOUT consulting their delete rules — a child's immortality is only as strong as its parent's, and the per-entity gate cannot see that path. Pinned by an engine test; unreachable in Relay (nothing deletes). Fix candidates: cascade-decides, or a load-time compatibility check."),
-    ("Field-level visibility (ME-3)", "A redacted comment stays a readable row; the tombstone is the UI's choice — a rude free UI could render the body. Rules cannot say “readable except this field.” Moving that inside the boundary costs per-field read atoms."),
-    ("Depth and polymorphism (ME-2)", "Attachments on comments (two levels), reactions on either (two parents). The context mechanism composes on paper; the space budget and the kernel's join path are where it may crack."),
-    ("The join under load (ME-4)", "Child visible() loads parent rows — cached per call, still N+1-shaped. Folds into KB2: a reporting seam that applies the read rule per row at SQL speed."),
-    ("The fail-open lint (ME-5)", "An actor-only deny not tagged for every entity deserves a load-time warning — slide 14's bug, caught before it ships. Cheap, mechanical, unbuilt."),
-]
-for i, (t, b) in enumerate(fr):
-    x = [40, 490][i % 2]
-    yy = (H - 96) - (i // 2) * 122
-    panel(x, yy - 114, 430, 114, fill=HexColor("#F9F1EC") if i < 2 else PANEL)
-    c.setFont(FB, 11)
-    c.setFillColor(WARN)
-    c.drawString(x + 14, yy - 19, t)
-    text_block(x + 14, yy - 36, b, size=9.1, width=402)
-footer(); c.showPage()
-
-# ---------------------------------------------------------------- slide 20
-header("Scoreboard", "Five rule bases, one engine, every claim executable")
+# ---------------------------------------------------------------- slide 15
+header("Scoreboard", "Six rule bases, one engine, every claim executable")
 stats = [
-    ("5 : 1", "services per engine — CMS, tickets, receivables, Flowdeck, "
-     "Relay on ~2,300 lines of domain-free Python (rule base 456, kernel "
-     "291, analyzer 351, lint 105).", ACCENT_D),
-    ("3 entities", "in one rule base — case, comment, attachment. Engine "
-     "domain vocabulary added for the thread + evidence: 0 lines, the "
-     "second zero in a row.", FREE),
-    ("107,856", "situations checked exhaustively across the five services — "
-     "runtime evaluation and the Z3 compilation agree on every one "
-     "(Relay alone: 37,200 over three entities).", OK),
-    ("2-way CI", "check.sh holds both directions: Relay's gate must PASS, "
-     "the preserved bypass variant must FAIL the lint, the taskboard's "
-     "round-2 draft must FAIL the frozen gate.", WARN),
+    ("6 : 1", "services per engine — CMS, tickets, receivables, Flowdeck, "
+     "Relay, Clearance on ~2,300 lines of domain-free Python (rule base "
+     "456, kernel 291, analyzer 351, lint 105).", ACCENT_D),
+    ("111,312", "situations checked exhaustively across the six rule bases — "
+     "runtime evaluation and the Z3 compilation agree on every one; "
+     "re-verified fresh for the manual.", OK),
+    ("1,549", "lines of field manual (docs/manual.md) teaching all of it — "
+     "three layers + composition + honest costs, every transcript real, "
+     "the worked example committed.", FREE),
+    ("2-way CI", "every check.sh holds both directions: gates must PASS, "
+     "and the preserved buggy drafts — Clearance round-1, taskboard "
+     "round-2, the bypass variant — must FAIL.", WARN),
 ]
 x = 40
 for n, b, col in stats:
@@ -697,28 +624,28 @@ for n, b, col in stats:
     x += 225
 c.setFont(FB, 12)
 c.setFillColor(ACCENT_D)
-c.drawString(40, 248, "Relay by the numbers — the whole product:")
+c.drawString(40, 248, "The method by the numbers:")
 bullets(40, 224, [
-    "721 lines of YAML (33 rules + 29 ∀-properties + 16 ∃-witnesses + 4 gated lifecycle entries + 75 frozen feature steps across 7 features) — reviewed by the solver in ~0.4 s per change.",
-    "764 lines of free htmx UI (app.py) — reviewed by nobody, for policy, ever: the boundary lint proves it cannot touch state around the kernel.",
-    "19 tests across three layers; 5-stage check.sh; 8 reproducible screenshots (screenshots.py); journal with pre-registered predictions in DEVLOG.md.",
-], 880, size=10.5, gap=6)
-text_block(40, 108,
+    "Layer 1: Flowdeck tickets → green gate ≈ 1 hour, 4 rounds × 0.18 s, 2 real authorization holes caught pre-code; Relay 33 rules over 3 entities in 721 lines of YAML, solver round ~0.4 s.",
+    "Layer 2: two migration designs falsified pre-code in <1 s each; proofs to every depth (inductive), every size (EPR, 0.38 s), and liveness (TLC, 623 states); the harness caught a real TOCTOU race and reproduces 59 anomalies on demand.",
+    "Layer 3: full fix in 1 round from a stronger gate (controlled, same prompt); 3.94× speedup with two broken attempts absorbed; capability tokens make kernel bypass a compile error (E0639/E0308, pinned).",
+], 880, size=10, gap=6)
+text_block(40, 100,
            "What the analyzer asks of every rule change, in seconds, per entity: dead rules · stale assumptions · "
            "∀-safety · ∃-possibility · lifecycle liveness + gated entries · frozen features with refusals by name.",
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 21
-header("Guardrails · CLAUDE.md", "Learned the hard way — the newest one is this deck's thesis")
+# ---------------------------------------------------------------- slide 16
+header("Guardrails · CLAUDE.md", "Learned the hard way — the manual is their long form")
 gr = [
-    ("11 · Relations are engine work, never client joins", "NEW. Child entities import parent context (parent.state, parent projections); the kernel joins the live parent into every child decision. Sharp edges kept: untagged global denies fail OPEN (tag + pin them); cascades skip child delete rules.", FREE),
+    ("11 · Relations are engine work, never client joins", "Child entities import parent context (parent.state, parent projections); the kernel joins the live parent into every child decision. Sharp edges kept: untagged global denies fail OPEN (tag + pin them); cascades skip child delete rules.", FREE),
     ("10 · The boundary is a kernel API, not a UI", "Rules guard interaction logic behind a function-level API; the UI above is agent-authored and free; generated UIs are scaffolding. Hold the boundary mechanically (lint), never by convention.", FREE),
-    ("1 · The spec is frozen for agents", "The analyzer takes --gate from a pinned directory; agents edit rules, never the gate. Historic buggy drafts are gated forever as regressions.", ACCENT_D),
-    ("2 · Gates need both directions", "Safety-only gates accept fixes that trade away liveness (“the safest system does nothing”). Every gate = safety + possibility witnesses + frozen feature runs.", ACCENT_D),
+    ("1 · The spec is frozen for agents", "The analyzer takes --gate from a pinned directory; agents edit rules, never the gate. Historic buggy drafts are gated forever as regressions — Clearance's round-1 joined them this week.", ACCENT_D),
+    ("2 · Gates need both directions", "Safety-only gates accept fixes that trade away liveness (“the safest system does nothing”). Clearance's S5 passing VACUOUSLY over a dead four-eyes rule is the one-transcript demonstration.", ACCENT_D),
     ("3 · Gate strength beats NL steering", "Same bug, model, prompt: a stronger gate turned a partial fix into the full fix (P4). Cheaper models are fine when the gate is strong.", ACCENT_D),
     ("6 · Counterexamples are the currency", "Named and machine-readable: situation witnesses, unsat cores, denied_by 403s — typed Denied values any UI renders its own way.", ACCENT_D),
-    ("7 · Record falsified predictions", "The DEVLOGs keep wrong predictions next to the runs that killed them, pre-registered predictions next to the runs that confirmed them — and slide 14's un-predicted lesson in between.", ACCENT_D),
+    ("7 · Record falsified predictions", "The DEVLOGs keep wrong predictions next to the runs that killed them — and the manual's Part 5 cites only that recorded evidence, never retrospect.", ACCENT_D),
     ("8 · Boundaries by construction", "Where the language allows: capability tokens, typestate. Where it doesn't (Python): name-mangling + a lint whose failure is named — and the honesty that this is not a proof.", ACCENT_D),
 ]
 xs2, yw = [40, 500], 420
@@ -733,33 +660,33 @@ for i, (t, b, col) in enumerate(gr):
     text_block(x + 14, yy - 36, b, size=9.2, width=yw - 28)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 22
+# ---------------------------------------------------------------- slide 17
 header("Roadmap", "Falsifiers on the table")
 c.setFont(FB, 13)
 c.setFillColor(OK)
 c.drawString(40, H - 110, "Held so far")
 bullets(40, H - 134, [
-    "RB1 (tickets land as rule diffs): held five times, and the cost curve stayed closed — imports 0, receivables ~100 (time), Flowdeck ~60 (relations), Relay 0, Relay's thread + evidence 0 again.",
-    "The one-entity wall came down as engine work with zero existing rules or gate lines weakened — and both multi-entity analyzer rounds were PASS with predictions pre-registered (plus one honest un-predicted lesson, slide 14).",
+    "RB1 (tickets land as rule diffs): held six times, and the cost curve stayed closed — imports 0, receivables ~100 (time), Flowdeck ~60 (relations), Relay 0 twice, Clearance 0 (plus one generic probe fix the new domain surfaced).",
+    "The one-entity wall came down as engine work; both multi-entity rounds PASS with predictions pre-registered; the method survived being written down — every manual claim re-verified against the repo.",
 ], 880, size=10.5, gap=6)
 c.setFont(FB, 13)
 c.setFillColor(ACCENT_D)
-c.drawString(40, H - 250, "Next")
-bullets(40, H - 274, [
-    "ME-1 — aggregates, when a ticket forces them: kernel-computed aggregate projections, with the analyzer's conservatism stated. ME-6 — cascade-decides (parent delete consults child delete rules) or the load-time check.",
-    "KB1 — red-team the boundary lint. KB2/ME-4 — a reporting/read seam (search, aggregation, pagination) that still applies the read rule per row. KB3 — concurrent writers between decide and write, on real Postgres (the P3 harness). KB4 — nearest-allow refusal explanations that do not leak across tenants.",
-    "DX1 — an outside developer ships a ruled app (rules + free htmx UI) from tickets in under a day. DX2 — the same tickets implemented conventionally by a strong LLM: does it contain the interaction holes the gates caught?",
+c.drawString(40, H - 240, "Next")
+bullets(40, H - 264, [
+    "DX1 now has its instrument: hand an outside developer TICKETS.md + docs/manual.md — do they ship a ruled app in under a day without touching the engine? DX2 — the same tickets implemented conventionally by a strong LLM: does it contain the interaction holes the gates caught?",
+    "ME-1 — aggregates, when a ticket forces them: kernel-computed aggregate projections, conservatism stated. ME-6 — cascade-decides or the load-time check. ME-5 — the fail-open lint.",
+    "KB1 — red-team the boundary lint. KB2/ME-4 — a reporting/read seam that still applies the read rule per row. KB3 — concurrent writers between decide and write, on real Postgres (the P3 harness). KB4 — nearest-allow refusal explanations that do not leak across tenants.",
     "RB3 — ticket→rule-diff vs ticket→handler fidelity, measured. P8 — the same rules as Cedar policies. P9 — the invariant→Postgres-constraint compiler nobody has built.",
-], 880, size=10.5, gap=6)
+], 880, size=10, gap=6)
 c.setFont(FB, 12)
 c.setFillColor(MUTED)
-c.drawString(40, 106, "Parked (consciously, with reasons recorded)")
-text_block(40, 88,
+c.drawString(40, 100, "Parked (consciously, with reasons recorded)")
+text_block(40, 82,
            "Alloy (Z3 covers it) · Quint→Rust codegen (no tooling) · Kani until unbounded domains arrive · Verus (proxy-blocked; Dafny stands in).",
            size=10.5, width=880, color=MUTED)
 footer(); c.showPage()
 
-# ---------------------------------------------------------------- slide 23
+# ---------------------------------------------------------------- slide 18
 c.setFillColor(INK)
 c.rect(0, 0, W, H, fill=1, stroke=0)
 c.setFillColor(FREE)
@@ -770,16 +697,16 @@ c.drawString(70, 400, "The one-sentence takeaway")
 c.setFont(F, 17)
 c.setFillColor(HexColor("#D7E2E9"))
 for i, ln in enumerate([
-    "One rule base now rules the whole product — cases, comments, attachments — because a child's rules",
-    "see its parent's live state, and the kernel joins that parent into every decision: “a closed case seals",
-    "its thread” is law checked in all 37,200 situations, not a flag the UI remembers to sync.",
+    "You state what must never and must always happen; agents make something that does it; reasoning",
+    "engines — not humans — hold the code to the statement. Six services, 111,312 exhaustively-checked",
+    "situations, two falsified designs and one controlled experiment later, the method is one document.",
 ]):
     c.drawString(70, 350 - i * 28, ln)
 c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
-c.drawString(70, 210, "Run it: examples/helpdesk/check.sh · python examples/helpdesk/app.py → http://127.0.0.1:8810/")
-c.drawString(70, 190, "Read it: examples/helpdesk/DEVLOG.md · research/16-multi-entity-rules.md (and 15, the boundary beneath)")
-c.drawString(70, 170, "The stack beneath: notes 13–14 (rules as the program, the DX study) · 09–12 (proof escalation) · p1–p7")
+c.drawString(70, 210, "Read it: docs/manual.md — the field manual (start at Part 0; Part 1 builds examples/approvals/)")
+c.drawString(70, 190, "Run it: examples/approvals/check.sh · examples/helpdesk/check.sh + python app.py · prototypes/p1..p7")
+c.drawString(70, 170, "The stack beneath: research/INDEX.md · notes 13–16 (rules, DX, boundary, relations) · 09–12 (proofs)")
 footer(title_page=True)
 c.showPage()
 
