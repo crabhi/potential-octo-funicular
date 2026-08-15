@@ -34,6 +34,19 @@ case, comment, attachment — with context-sensitive child rules (note 16).
 
 ## Change log
 
+- 2026-08-15 (manual rewritten self-contained — the developer's second
+  directive of the day: "don't assume the reader will read anything else
+  from this repository, don't talk about experiments but present a new
+  development system"): docs/manual.md rewritten as a standalone
+  handbook. All research-note/DEVLOG/prototype/falsifier-ID references
+  removed; episodes reframed as worked scenarios and design rationale of
+  the system (the two falsified migration designs, the safety-only-gate
+  partial fix, the TOCTOU catch); Part 5 became a priced register (bill,
+  sharp edges with statuses, limits with triggers+remedies, alternatives
+  considered); a "What ships" section names the components. 1,568 lines,
+  zero repo-archaeology terms (grep-verified). Deck slides 12/15 updated
+  to describe the self-contained stance.
+
 - 2026-08-15 (the field manual + Clearance): the developer asked for the
   best approaches by DX, velocity and safety, written up as a manual for
   an experienced developer new to the concept — then redirected: the

@@ -489,7 +489,7 @@ text_block(40, 84,
 footer(); c.showPage()
 
 # ---------------------------------------------------------------- slide 12
-header("Act VI · the manual", "docs/manual.md — 1,549 lines, every claim executable")
+header("Act VI · the manual", "docs/manual.md — 1,568 lines, self-contained, every claim runs")
 panel(40, 216, 430, 240)
 c.setFont(FB, 11.5)
 c.setFillColor(ACCENT_D)
@@ -508,9 +508,9 @@ c.setFillColor(ACCENT_D)
 c.drawString(524, 434, "What makes it a manual, not a pitch")
 bullets(524, 410, [
     "Written for an experienced developer with NO formal-methods background: the workflow, the syntax by example, day-2 operations, the failure modes.",
-    "Every transcript is real output — the analyzer PASS, the round-1 FAIL, the episode logs — regenerated for the manual, not quoted from memory.",
-    "The worked example is a real sixth service, committed with its own one-command check (next slide).",
-    "The honest-costs part cites only recorded evidence: the DEVLOG friction ledger with statuses, the falsifiers, the numbers re-verified fresh (111,312 situations across six rule bases).",
+    "Self-contained by design (developer directive): it assumes the reader reads NOTHING else — no research notes, no journals — and presents the system in its own right, not as an experiment report.",
+    "Every transcript is real tool output, and the worked example is a real committed service with its own one-command check (next slide).",
+    "The costs part is a priced register: the bill itemized, the sharp edges with statuses, when NOT to use it, alternatives considered.",
     "DX, velocity and safety get an explicit ledger per layer, and for the whole.",
 ], 382, size=8.8, gap=5)
 text_block(40, 178,
@@ -607,9 +607,9 @@ stats = [
     ("111,312", "situations checked exhaustively across the six rule bases — "
      "runtime evaluation and the Z3 compilation agree on every one; "
      "re-verified fresh for the manual.", OK),
-    ("1,549", "lines of field manual (docs/manual.md) teaching all of it — "
-     "three layers + composition + honest costs, every transcript real, "
-     "the worked example committed.", FREE),
+    ("1,568", "lines of self-contained manual (docs/manual.md) teaching all "
+     "of it — three layers + composition + priced limits, every transcript "
+     "real, the worked example committed.", FREE),
     ("2-way CI", "every check.sh holds both directions: gates must PASS, "
      "and the preserved buggy drafts — Clearance round-1, taskboard "
      "round-2, the bypass variant — must FAIL.", WARN),
