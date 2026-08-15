@@ -554,6 +554,18 @@ The load-bearing properties:
 See it at scale in `examples/helpdesk/` (Relay): a ~700-line
 hand-written htmx UI — cross-state SLA queues, assign-to-me, threads
 with internal notes — with zero policy in it, over exactly this kernel.
+The same case, two viewers — staff see THREAD (3) with an internal
+note; the customer sees THREAD (2), and the note does not exist for
+her even by forged id, because `visible()` is the read rule:
+
+| staff view | customer view |
+|---|---|
+| ![Relay thread as staff](slides/img/relay-sam-thread.png) | ![Relay thread as customer](slides/img/relay-dana-thread.png) |
+
+And a refusal on the wire — the 403 toast naming its rule, straight
+from `Denied.rule`:
+
+![named 403 toast](slides/img/relay-denied-toast.png)
 
 ### 1.11 Relations: child entities and parent context
 
