@@ -76,7 +76,7 @@ this a method rather than three tools.
 ### 0.3 The numbers up front
 
 You should know what you are buying before reading 1,500 lines. From
-this repository's five services, all running on one generic engine:
+this repository's six services, all running on one generic engine:
 
 - **Velocity**: a complete multi-tenant kanban SaaS was 7 tickets → 18
   rules → ~150 lines of YAML, zero application-specific imperative
@@ -84,10 +84,11 @@ this repository's five services, all running on one generic engine:
   application logic more cheaply than running one integration test.
 - **Safety**: every service's full decision space is checked
   exhaustively against an independent Z3 encoding — 111,312 situations
-  across the five services — plus universal safety properties, witness
-  properties, and frozen end-to-end features. Four analyzer rounds on
-  the kanban app caught two real authorization holes before any code
-  ran.
+  across the six rule bases (8,640 + 576 + 26,880 + 34,560 + 37,200 +
+  3,456, re-verified for this manual) — plus universal safety
+  properties, witness properties, and frozen end-to-end features. Four
+  analyzer rounds on the kanban app caught two real authorization holes
+  before any code ran.
 - **DX**: the honest cost is discipline, not tooling pain: vocabulary
   is a budget you spend consciously, some refusals surface generically
   (`default_deny`) unless you name them, and anything the vocabulary
@@ -662,15 +663,18 @@ never discovered in production.
 
 ### 1.14 The ledger
 
-**DX** — the program you review is ~150 lines of YAML sentences; the
-solver reviews with you; refusal UX is free (named 403s). The costs:
-vocabulary discipline is real work, and thinking in
-allowed-situations-space takes about a week to become native.
-**Velocity** — a ticket is usually a handful of rules plus gate lines;
-analyzer feedback in 0.2 s; no enforcement code, ever. **Safety** —
-exhaustive, not sampled: every property over every situation, both
-directions frozen, boundary lint in CI, forged requests hit the same
-kernel the buttons do.
+**DX** — the program you review is ~150 lines of YAML sentences per
+entity; the solver reviews with you ("the finding arrives with the
+situation *and* the granting rule — no debugger, no log-diving"
+— Flowdeck DEVLOG); refusal UX is free (named 403s). The recorded
+costs: naming conventions (projections are resource-relative), probe
+placement (deny names are declaration-order), and the vocabulary
+budget you manage by hand. **Velocity** — Flowdeck went tickets →
+green gate in about an hour of author time, 4 analyzer rounds at
+~0.18 s each, "almost none of it debugging"; no enforcement code,
+ever. **Safety** — exhaustive, not sampled: every property over every
+situation, both directions frozen, boundary lint in CI, forged
+requests hit the same kernel the buttons do.
 
 ---
 
@@ -794,10 +798,131 @@ You do not adopt three layers in one quarter. The order that works:
 
 ## Part 5 — Honest costs, limits, and when not to use this
 
-<!-- TO FILL: consolidated frictions from DEVLOGs + falsifier index +
-scoreboard numbers; when NOT to use (tiny CRUD with one role? hard
-real-time? ML-shaped logic?); open problems (aggregates/ME-1,
-field-level visibility/ME-3, N+1 joins/ME-4). -->
+Everything in this part is recorded evidence — DEVLOG entries kept as
+the work happened (predictions written *before* the runs that tested
+them, wrong ones left in), falsifier lists, and measured numbers — not
+retrospective marketing. That is itself part of the method (guardrail
+7): a limit you cannot cite is a limit you will rediscover in
+production.
+
+### 5.1 The bill, itemized
+
+**What a service costs.** Per-domain YAML stays flat at roughly 150
+lines *per entity* (tickets 65, CMS 130, receivables 117, Flowdeck 160,
+Clearance 115; multi-entity Relay is 278 — the "flat" claim is per
+entity, not per service). Flowdeck's full trip — 7 tickets → 18 rules →
+green gate — took about an hour of author time, "most of it *writing*
+the two YAML files, almost none of it debugging."
+
+**What the platform costs.** The generic engine + analyzer is ~2,300
+domain-free Python lines, amortized over all six services. Each new
+domain has cost exactly **one missing generic concept**: tickets → 0
+lines, receivables → ~100 (time), Flowdeck → ~60 (actor↔resource
+relations), Relay → 0 twice in a row (the note-14 prediction that the
+concepts converge, confirmed). Clearance → 0 lines of engine growth and
+one generic bug fix.
+
+**What checking costs.** Analyzer rounds: ~0.18 s single-entity, ~0.4 s
+for three entities — review latency is effectively zero. The exhaustive
+runtime↔Z3 agreement is the expensive rung: ~80–85 s in CI for the
+26–35k-situation services, exponential in projections (falsifier RB2's
+known scaling edge; the vocabulary budget is also a CI budget).
+
+**What the gate pays back.** Two real authorization holes in Flowdeck
+alone — a task assigned to `anonymous` handing work to the public, and
+a broad staff allow quietly granting the team's work — both interaction
+bugs where "each rule read fine alone," both found by ∀-checks, neither
+the kind of thing anyone writes a test for. Plus one predicted-dead
+rule proven load-bearing, then proven dead after the fix — the
+dead-rule check is a live diagnostic of your containment regime.
+
+### 5.2 The friction ledger
+
+The recorded frictions, consolidated. "Closed" means an engine change
+removed it; "open" means you will hit it.
+
+| Friction | Status |
+|---|---|
+| Projections read like actor facts but live under `resource.*` (`assigned_to_me`) — fails loud at load; cost one round | open (naming convention) |
+| `denied_by` names are declaration-order among overlapping denies — place probes in the minimal state that triggers them | open (analyzer check proposed) |
+| Edits were blind to proposed values — "vocabulary gaps fail loud; *semantic* gaps fail silent — the sharpest DX edge found" | **closed** by two-phase edits (cost: 6 kernel + 9 executor lines) |
+| Assumptions are trusted axioms, not proven — a stale one is silent unsoundness | partially closed: creating-roles-must-be-assumable-authors is checked; the rest is open |
+| `default_deny` flattens refusal UX exactly where the rule base is leanest (containments have no rule to name) | open (KB4: nearest-allow explanations, solver-computable, unbuilt — and an explanation is a disclosure channel, so org walls apply to error messages too) |
+| The boundary lint is a lint plus name-mangling, not a proof — it guarantees the bypass cannot happen *quietly* | open (KB1; by-construction version is a process boundary) |
+| Two decisions per edit ≠ transactionality: a concurrent writer between decide and write is out of scope (single SQLite connection) | open (KB3 — this is Layer-2 territory) |
+| Untagged global denies fail OPEN for child entities (`deny_inactive` would have let deactivated accounts post comments) | fixed + pinned both directions (S28/S29); the general lint is ME-5 |
+| Parent-delete cascades skip child delete rules — and the per-entity gate *cannot see it* | open (ME-6), pinned by an engine test |
+| No aggregates over children; one nesting level; one parent per child | open by design (ME-1/ME-2 — a frame problem, not a syntax gap) |
+| Field-level visibility: a redacted comment is a readable row whose body the UI *chooses* to tombstone | open (ME-3 — honestly outside the verified boundary today) |
+| `visible()` on children is N+1-shaped | open (ME-4) |
+| The pure feature executor holds one live item per entity — some scenarios must reorder | open (predicted before the run as P-f, and it happened) |
+| The engine clock is a trust root (`is_past_due` is only as true as the server's date) | open (RB6) |
+
+Two meta-frictions worth more than the table: **round-1-green is
+author skill, not gate redundancy** — "the gate stays frozen precisely
+for the author who hasn't read the DEVLOGs" (Relay went green on round
+1; the same author had produced two real holes one domain earlier).
+And the ten honest minutes lost to `git checkout` on uncommitted rule
+edits: *commit before you experiment on yourself.*
+
+### 5.3 Falsifiers: how limits stay honest
+
+Every research note ends with falsifiers — predictions that would
+prove the method wrong, each with the experiment that would fire it.
+This is the mechanism that keeps the limits list from rotting. The
+standing index: **RB1–RB6** (expressiveness over ~20 tickets; solver
+scale at ~100 rules; LLM translation fidelity; the projection gap —
+a temporal twin should find a race the rules certify safe; gate
+strength transfer; the clock as trust root), **DX1–DX3** (a developer
+new to the method ships in under a day; conventional codegen of the
+same tickets contains the holes the gate caught; the edit blind spot
+bites before it is closed — since closed), **KB1–KB4** (lint red-team;
+kernel API too small for real products; edit transactionality;
+default_deny UX), **ME-1–ME-6** (aggregates; depth/polymorphism;
+field-level reads; the join under load; the fail-open lint; the
+cascade). Falsified predictions stay in the log — DX3 and the round-1
+janitor prediction both fired, and both taught more than the
+confirmations did.
+
+### 5.4 When not to use this
+
+Recorded, tested boundaries:
+
+- **Rules don't compute.** Rendering, search, diffing, billing
+  arithmetic, migrations are code. The claim is that *domain policy*
+  is rules — which, for a CRUD SaaS, is where most ticket-driven
+  change lands, but it is not everything.
+- **The scope is ordinary web SaaS** — CRUD/API, authz, tenancy,
+  workflow — "not kernels, crypto, or avionics." The assurance
+  ceiling of Layer 1 is exhaustive finite checking; if your risk
+  profile needs verified compilers and proof-carrying code, this is
+  not that.
+- **The engine is unproven Python.** Fine for deciding whether the
+  *method* works; the production form of the pattern rests trust on a
+  verified engine (Cedar's Lean proofs are the shipped existence
+  proof) plus per-change analysis.
+- **Cross-item and relational invariants** ("≤3 published per
+  author", dedup/idempotency) are outside the situation vocabulary —
+  store constraints and Layer-2 models are the escalation path.
+
+Untested but suspected (open questions, not findings): a tiny
+single-role CRUD app may not repay the gate-writing; hard real-time
+and ML-shaped logic (ranking, moderation) have no obvious rule-shaped
+core. Treat these as experiments waiting to run, not verdicts.
+
+### 5.5 Dead ends, recorded
+
+The method records negative results with the same care as wins — a
+sample that shows the flavor: **Kani vs exhaustive** — at a 64-point
+finite domain, exhaustive enumeration matches a model-checking-grade
+tool at zero setup cost (~0.4 s); Kani wins the moment unbounded types
+enter the kernel's signature (it proved the same rules over a
+~2^131-point domain in ~0.1 s where exhaustive extrapolates to ~10^21
+years). "Exhaustive for finite decision kernels today; Kani when ids
+and strings arrive." **Alloy** — parked: Z3 already covers single-state
+analysis; Alloy would add instance visualization only. **Generating
+Rust from the Quint spec** — parked: no tooling exists; a research
+project of its own. Parked ≠ dead: parked means consciously not now.
 
 ---
 
