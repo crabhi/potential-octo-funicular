@@ -151,8 +151,19 @@ def main():
             if today:
                 request(port, "POST", "/__clock", None, {"today": today})
             plural = rb.entity + "s"
-            _, all_items = request(port, "GET", f"/{plural}",
-                                   next(n for n, a in actors.items() if a.role == "admin"))
+            # reference item set: the union of every declared actor's view
+            # (no privileged role is assumed to exist — rule bases need not
+            # have an all-seeing admin)
+            seen_ids, all_rows = set(), []
+            for name, a in actors.items():
+                if a.role == "anonymous" or not a.active:
+                    continue
+                _, resp = request(port, "GET", f"/{plural}", name)
+                for item in resp[plural]:
+                    if item["id"] not in seen_ids:
+                        seen_ids.add(item["id"])
+                        all_rows.append(item)
+            all_items = {plural: all_rows}
             for viewer in ["anonymous"] + [n for n, a in actors.items()
                                            if a.role not in ("admin", "anonymous")
                                            and a.active][:1]:

@@ -1,0 +1,115 @@
+# Clearance — a miniature expense-claims service, as one rule base.
+# The worked example of docs/manual.md: every rule names its ticket
+# (../../TICKETS.md), and the manual walks through writing this file.
+# Executed and analyzed by the generic engine in ../../../rule-driven-cms/.
+
+entity: claim
+
+roles: [anonymous, employee, manager, finance]
+
+states: [draft, submitted, approved, rejected, paid]
+
+# The situation space is a budget: every boolean doubles it. Only
+# `receipt` needs a has_ boolean (EX-2); org feeds a projection and
+# amount is data no rule mentions — both opt out.
+fields:
+  - receipt
+  - {name: org, has: false}
+  - {name: amount, has: false}
+
+actor_fields: [org]
+
+projections:
+  - {name: same_org, kind: actor_matches_field, actor_attr: org, field: org}
+
+lifecycle:
+  transitions:
+    - {action: create,  from: none,      to: draft}
+    - {action: submit,  from: draft,     to: submitted}
+    - {action: approve, from: submitted, to: approved}
+    - {action: reject,  from: submitted, to: rejected}
+    - {action: revise,  from: rejected,  to: draft}
+    - {action: pay,     from: approved,  to: paid}
+
+assumptions:
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+  - id: a_authors_file
+    description: "Claims are authored by the people who may file them:
+      employees and managers (EX-3)."
+    holds: 'implies(actor.is_author, actor.role in ["employee", "manager"])'
+
+# Containment note (see the manual on the two disciplines): there are NO
+# deny rules for "employees never approve", "finance never decides",
+# "anonymous sees nothing", "nothing touches a paid claim". The allows
+# below are tight and silence means deny — writing those denies would
+# make them provably DEAD rules. Gate properties S1, S4, S6, S7, S10
+# prove each containment universally instead. State seals are the
+# opposite discipline: `the_record_is_sealed` deliberately carves a
+# broad allow, so the refusal has a name the UI can show.
+
+rules:
+  # ---- denies ----
+  - id: deny_inactive
+    description: "EX-5: a deactivated account can do nothing at all."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: org_walls
+    description: "EX-1: employees and managers act only inside their own
+      organization — reading included, and a claim can never be filed
+      into another org."
+    effect: deny
+    when: 'actor.role in ["employee", "manager"] and not resource.same_org'
+
+  - id: receipt_required
+    description: "EX-2: no receipt, no submission."
+    effect: deny
+    when: 'action == "submit" and not resource.has_receipt'
+
+  - id: no_self_decision
+    description: "EX-3: nobody decides their own claim — managers file
+      expenses too, and someone else approves them."
+    effect: deny
+    when: 'action in ["approve", "reject"] and actor.is_author'
+
+  - id: the_record_is_sealed
+    description: "EX-4 + EX-5: drafts are the only thing you edit or
+      delete; everything after submission is the record. (Fix a rejected
+      claim by revising it back into draft first.)"
+    effect: deny
+    when: 'resource.state != "draft" and action in ["edit", "delete"]'
+
+  # ---- allows ----
+  - id: staff_file
+    description: "EX-1 + EX-3: employees and managers file claims (into
+      their own org — org_walls holds them to it)."
+    effect: allow
+    when: 'actor.role in ["employee", "manager"] and action == "create"'
+
+  - id: author_maintains
+    description: "EX-2 + EX-5: the author works their claim — read it,
+      edit it, delete it, submit it (the record seal and the receipt
+      deny carve the sharp edges)."
+    effect: allow
+    when: 'actor.is_author
+           and action in ["read", "edit", "delete", "submit"]'
+
+  - id: author_revises
+    description: "EX-5: the author pulls a rejected claim back to draft."
+    effect: allow
+    when: 'actor.is_author and action == "revise"'
+
+  - id: manager_reviews
+    description: "EX-3: managers read their org's claims and decide
+      them (org_walls scopes, no_self_decision carves)."
+    effect: allow
+    when: 'actor.role == "manager"
+           and action in ["read", "approve", "reject"]'
+
+  - id: finance_pays
+    description: "EX-4: finance reads everything and pays approved
+      claims — its entire blast radius."
+    effect: allow
+    when: 'actor.role == "finance" and action in ["read", "pay"]'

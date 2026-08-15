@@ -1,0 +1,97 @@
+# Clearance, the REAL round-1 draft, preserved for the gate to catch
+# forever (see docs/manual.md and ./check.sh stage 2). The bug: only
+# employees file claims, so no author can ever be a manager — the
+# four-eyes deny below is provably DEAD and gate witness P3 (a manager
+# submitting their own expense) has no satisfying situation. The fix in
+# round 2 was a requirement fix, not a rule tweak: managers expense too.
+
+entity: claim
+
+roles: [anonymous, employee, manager, finance]
+
+states: [draft, submitted, approved, rejected, paid]
+
+fields:
+  - receipt
+  - {name: org, has: false}
+  - {name: amount, has: false}
+
+actor_fields: [org]
+
+projections:
+  - {name: same_org, kind: actor_matches_field, actor_attr: org, field: org}
+
+lifecycle:
+  transitions:
+    - {action: create,  from: none,      to: draft}
+    - {action: submit,  from: draft,     to: submitted}
+    - {action: approve, from: submitted, to: approved}
+    - {action: reject,  from: submitted, to: rejected}
+    - {action: revise,  from: rejected,  to: draft}
+    - {action: pay,     from: approved,  to: paid}
+
+assumptions:
+  - id: a_anonymous_is_active
+    description: "Anonymous visitors have no account to deactivate."
+    holds: 'implies(actor.role == "anonymous", actor.active)'
+  - id: a_authors_file
+    description: "Claims are authored by the people who may file them —
+      in this draft, employees only."
+    holds: 'implies(actor.is_author, actor.role == "employee")'
+
+rules:
+  # ---- denies ----
+  - id: deny_inactive
+    description: "EX-5: a deactivated account can do nothing at all."
+    effect: deny
+    when: 'not actor.active'
+
+  - id: org_walls
+    description: "EX-1: employees and managers act only inside their own
+      organization."
+    effect: deny
+    when: 'actor.role in ["employee", "manager"] and not resource.same_org'
+
+  - id: receipt_required
+    description: "EX-2: no receipt, no submission."
+    effect: deny
+    when: 'action == "submit" and not resource.has_receipt'
+
+  - id: no_self_decision
+    description: "EX-3: nobody decides their own claim."
+    effect: deny
+    when: 'action in ["approve", "reject"] and actor.is_author'
+
+  - id: the_record_is_sealed
+    description: "EX-4 + EX-5: drafts are the only thing you edit or
+      delete; everything after submission is the record."
+    effect: deny
+    when: 'resource.state != "draft" and action in ["edit", "delete"]'
+
+  # ---- allows ----
+  - id: employee_files
+    description: "EX-1: employees file claims into their own org."
+    effect: allow
+    when: 'actor.role == "employee" and action == "create"'
+
+  - id: author_maintains
+    description: "EX-2 + EX-5: the author works their claim."
+    effect: allow
+    when: 'actor.is_author
+           and action in ["read", "edit", "delete", "submit"]'
+
+  - id: author_revises
+    description: "EX-5: the author pulls a rejected claim back to draft."
+    effect: allow
+    when: 'actor.is_author and action == "revise"'
+
+  - id: manager_reviews
+    description: "EX-3: managers read their org's claims and decide them."
+    effect: allow
+    when: 'actor.role == "manager"
+           and action in ["read", "approve", "reject"]'
+
+  - id: finance_pays
+    description: "EX-4: finance reads everything and pays approved claims."
+    effect: allow
+    when: 'actor.role == "finance" and action in ["read", "pay"]'

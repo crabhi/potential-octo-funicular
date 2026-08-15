@@ -1,0 +1,73 @@
+# The FROZEN gate for Clearance, direction 3: end-to-end scenarios
+# replayed on every rule change. Refusals are expected BY NAME — a
+# missing deny fails a feature.
+
+actors:
+  eva:  {role: employee, org: acme}
+  zed:  {role: employee, org: zephyr}
+  mia:  {role: manager,  org: acme}
+  mo:   {role: manager,  org: acme}
+  fern: {role: finance}
+  lex:  {role: employee, org: acme, active: false}
+
+features:
+  - id: feat_expense_flow
+    description: "EX-1/EX-2/EX-4: the happy path — draft, receipt,
+      submit, approve, pay — with the org wall, the receipt deny and
+      the record seal probed along the way."
+    steps:
+      - {actor: eva, action: create, set: {org: acme, amount: "83.20"},
+         expect: allow, state_after: draft}
+      - {actor: eva, action: submit, expect: deny,
+         denied_by: receipt_required}
+      - {actor: eva, action: edit, set: {receipt: "taxi-2026-08-12.pdf"},
+         expect: allow}
+      - {actor: zed, action: read, expect: deny, denied_by: org_walls}
+      - {actor: anonymous, action: read, expect: deny,
+         denied_by: default_deny}
+      - {actor: eva, action: submit, expect: allow, state_after: submitted}
+      - {actor: eva, action: edit, set: {amount: "830.20"}, expect: deny,
+         denied_by: the_record_is_sealed}
+      - {actor: mia, action: approve, expect: allow, state_after: approved}
+      - {actor: fern, action: pay, expect: allow, state_after: paid}
+      - {actor: eva, action: edit, set: {amount: "1.00"}, expect: deny,
+         denied_by: the_record_is_sealed}
+      - {actor: eva, action: delete, expect: deny,
+         denied_by: the_record_is_sealed}
+      - {actor: eva, action: read, expect: allow}
+
+  - id: feat_four_eyes
+    description: "EX-3: a manager files an expense; she cannot approve
+      it herself; finance cannot decide; a second manager approves;
+      only finance pays."
+    steps:
+      - {actor: mia, action: create,
+         set: {org: acme, amount: "412.00", receipt: "hotel.pdf"},
+         expect: allow, state_after: draft}
+      - {actor: mia, action: submit, expect: allow, state_after: submitted}
+      - {actor: mia, action: approve, expect: deny,
+         denied_by: no_self_decision}
+      - {actor: fern, action: approve, expect: deny,
+         denied_by: default_deny}
+      - {actor: mo, action: approve, expect: allow, state_after: approved}
+      - {actor: mia, action: pay, expect: deny, denied_by: default_deny}
+      - {actor: fern, action: pay, expect: allow, state_after: paid}
+
+  - id: feat_rejection_loop
+    description: "EX-5: reject, revise back to draft, fix, resubmit,
+      approve, pay — and a deactivated account is locked out."
+    steps:
+      - {actor: eva, action: create,
+         set: {org: acme, amount: "59.99", receipt: "dinner.jpg"},
+         expect: allow, state_after: draft}
+      - {actor: eva, action: submit, expect: allow, state_after: submitted}
+      - {actor: mia, action: reject, expect: allow, state_after: rejected}
+      - {actor: eva, action: edit, set: {receipt: "dinner-fixed.jpg"},
+         expect: deny, denied_by: the_record_is_sealed}
+      - {actor: eva, action: revise, expect: allow, state_after: draft}
+      - {actor: eva, action: edit, set: {receipt: "dinner-fixed.jpg"},
+         expect: allow}
+      - {actor: eva, action: submit, expect: allow, state_after: submitted}
+      - {actor: mia, action: approve, expect: allow, state_after: approved}
+      - {actor: fern, action: pay, expect: allow, state_after: paid}
+      - {actor: lex, action: read, expect: deny, denied_by: deny_inactive}

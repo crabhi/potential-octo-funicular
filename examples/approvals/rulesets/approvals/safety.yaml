@@ -1,0 +1,79 @@
+# The FROZEN gate for Clearance, both directions. Direction 1 (safety):
+# what must never / must always happen, quantified over EVERY situation
+# the rules allow. Direction 2 (possibility): what must remain possible.
+# Each property names the ticket it protects. Agents editing rules.yaml
+# answer to this file pinned (--gate).
+
+safety:
+  - id: S1_no_anonymous
+    description: "EX-1: the public sees nothing, ever."
+    requires: 'actor.role != "anonymous"'
+
+  - id: S2_inactive_locked_out
+    description: "EX-5: deactivated accounts can do nothing."
+    requires: 'actor.active'
+
+  - id: S3_org_walls
+    description: "EX-1: employees and managers never act outside their
+      own organization."
+    requires: 'implies(actor.role in ["employee", "manager"],
+                       resource.same_org)'
+
+  - id: S4_only_managers_decide
+    description: "EX-3: approve and reject belong to managers only —
+      employees never, finance never."
+    requires: 'implies(action in ["approve", "reject"],
+                       actor.role == "manager")'
+
+  - id: S5_no_self_decision
+    description: "EX-3: nobody decides their own claim."
+    requires: 'implies(action in ["approve", "reject"],
+                       not actor.is_author)'
+
+  - id: S6_only_finance_pays
+    description: "EX-4: paying is finance's alone."
+    requires: 'implies(action == "pay", actor.role == "finance")'
+
+  - id: S7_paid_is_forever
+    description: "EX-4: a paid claim admits nothing but reading."
+    requires: 'implies(resource.state == "paid", action == "read")'
+
+  - id: S8_receipts_before_submission
+    description: "EX-2: nothing is submitted without a receipt."
+    requires: 'implies(action == "submit", resource.has_receipt)'
+
+  - id: S9_the_record_survives
+    description: "EX-5: only drafts are ever deleted."
+    requires: 'implies(action == "delete", resource.state == "draft")'
+
+  - id: S10_finance_contained
+    description: "EX-4: finance reads and pays — the blast radius of a
+      compromised finance account."
+    requires: 'implies(actor.role == "finance", action in ["read", "pay"])'
+
+possibility:
+  - id: P1_employees_can_file
+    description: "EX-1: an employee can file a claim."
+    witness: 'actor.role == "employee" and action == "create"'
+
+  - id: P2_claims_can_get_paid
+    description: "EX-4: the flow can actually finish — someone can pay."
+    witness: 'action == "pay"'
+
+  - id: P3_managers_expense_too
+    description: "EX-3: a manager can submit their own claim — the
+      four-eyes story is not vacuous."
+    witness: 'actor.is_author and actor.role == "manager"
+              and action == "submit"'
+
+  - id: P4_rejection_is_a_loop
+    description: "EX-5: a rejected claim can be revised back to draft."
+    witness: 'action == "revise"'
+
+# EX-4's "paid may only ever be reached by finance paying an approved
+# claim — no shortcuts, including future features": structural
+# jurisdiction over the lifecycle table itself.
+lifecycle:
+  only_into:
+    paid: [pay]
+    approved: [approve]
