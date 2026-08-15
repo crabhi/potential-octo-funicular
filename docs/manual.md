@@ -680,19 +680,539 @@ requests hit the same kernel the buttons do.
 
 ## Part 2 — Layer 2: models before code
 
-<!-- TO FILL: P1/P3 brief — bugs between requests; worked Quint model
-(migration under snapshot isolation); the two falsified designs;
-escalation ladder; conformance harness; tests as approximation;
-ledger. -->
+### 2.1 Bugs that live between requests
+
+Layer 1 decides one situation at a time. A whole class of bugs does not
+exist in any single situation: they live in the *interleavings* — a
+schema migration backfilling rows while two app versions serve traffic,
+a background job retrying against state another worker moved, two
+requests racing a flag flip. No per-request rule can see them, no
+matter how exhaustively you check it, because every individual decision
+is correct; the sequence is what's wrong.
+
+The worked example for this layer is the classic hard case: **rename a
+column while the application serves traffic** (expand/contract, under
+snapshot isolation, with a rolling deploy in flight). The repository's
+`prototypes/p1-migration-model/` is the design; `prototypes/
+p3-conformance-harness/` is the same design run against a real Rust API
+on a real Postgres under real concurrent load.
+
+The method here: **model the design before the code exists.** The model
+is a design document that fights back.
+
+### 2.2 A worked model
+
+The entire model is 270 lines of Quint — comparable to the design doc
+you would have written anyway, except this one is executable. Its state
+is the essence of the situation, including two *ghost variables* (state
+the real system doesn't have, tracked purely so correctness is
+statable):
+
+```quint
+var phase: int                   // migration phase
+var dbO: int -> int              // committed value of column O per key
+var dbN: int -> int              // committed value of column N per key
+var ver: int -> int              // committed row version (SI conflicts)
+var instVer: int -> int          // app instance -> app version (1 or 2)
+var bf: (bool, int, int, int)    // in-flight backfill transaction
+var logical: int -> int          // ghost: what the app believes k holds
+var lastReadOk: bool             // ghost: false once any read was stale
+```
+
+Eleven actions cover the world: v1 instances write only the old column,
+v2 instances dual-write, reads route by phase, the rolling upgrade is
+nondeterministic, and the backfill is a genuine multi-step
+snapshot-isolation transaction with first-committer-wins conflict
+detection. The read is where the ghost gets armed:
+
+```quint
+action appRead = {
+  nondet i = INSTANCES.oneOf()
+  nondet k = KEYS.oneOf()
+  val fromN = and { nState == COL_PRESENT, instVer.get(i) == 2 }
+  val seen = if (fromN) dbN.get(k) else dbO.get(k)
+  all {
+    or { fromN, oState == COL_PRESENT },
+    lastReadOk' = and { lastReadOk, seen == logical.get(k) },
+    ...
+  }
+}
+```
+
+And then the part you actually author as the developer — the
+invariants, which are one-liners:
+
+```quint
+// I1: no committed read ever returned anything but the logical value.
+val invReadsCorrect = lastReadOk
+
+// I2: after the read switch, while both columns live, they agree.
+val invColumnsAgree =
+  (phase == P_SWITCHED and oState == COL_PRESENT)
+    implies KEYS.forall(k => dbN.get(k) == dbO.get(k))
+
+// I3: reads never switch to N before every row is backfilled.
+val invBackfillDoneAtSwitch =
+  (phase >= P_SWITCHED) implies KEYS.forall(k => dbN.get(k) != NULL)
+```
+
+Note the division of labor, because it is the same one as Layer 1's:
+**you state what must hold (three one-liners); the engine explores what
+your design actually does.** The ghost-variable pattern is the craft
+trick to learn — "no stale read, ever" becomes a boolean that any
+action can falsify and an invariant can watch.
+
+One more Layer-1 habit transfers verbatim: the model is *instantiated
+twice*, `correct` (with the drain guard) and `broken` (without), and
+the one-command check requires the broken one to fail:
+
+```bash
+echo "== simulate: broken protocol, no drain guard (expect: violation) =="
+quint run migration.qnt --main broken --invariant invAll \
+  --backend typescript --max-samples 20000 --max-steps 25 && {
+    echo "ERROR: expected a violation in the broken config"; exit 1; } || true
+```
+
+A gate that has never failed is untested; every layer of this method
+keeps a broken variant around to prove its checker still bites.
+
+### 2.3 What the checker does to your design
+
+This model's history is the reason this layer exists. It was written by
+an engineer who believed each version was correct. **The checker
+disagreed twice, and both counterexamples correspond to real production
+failure modes:**
+
+1. **Drain guarded only at backfill start.** The first design required
+   "all instances upgraded" only before backfill. Counterexample: v2
+   dual-writes fill the new column for every key, so the read switch's
+   "backfill complete" condition is satisfied *without any backfill
+   running* — while a v1 instance is still alive. It writes the old
+   column post-switch; a reader returns a stale value. Fix: the drain
+   condition must gate the read switch too.
+2. **`WHERE full_name IS NULL` backfill is wrong under rolling
+   deploys.** The second design backfilled only rows with no new-column
+   value. Counterexample: during the rolling window a v2 instance
+   dual-writes key k, then a still-live v1 instance overwrites the old
+   column only — N is non-NULL but **stale**, and an IS-NULL backfill
+   never revisits it. The staleness survives the drain and the switch.
+   Fix: backfill `WHERE new IS DISTINCT FROM old`, and gate the switch
+   on "all rows in sync", not "all rows non-NULL".
+
+Both were found by random simulation **in under a second** and
+confirmed symbolically. Read that against what these bugs cost when
+found the usual way: each is a rare, load-dependent, rolling-deploy-
+window data-corruption incident. Here they cost one red trace each,
+before any code existed. Neither counterexample was in the literature;
+"a careful engineer believed it was correct" is the operative phrase —
+this is what design review by adversarial search buys that design
+review by nodding cannot.
+
+The fixes live in the model as `NOTE` comments beside the guards they
+added — the model *is* the design record. And bug #2 was deliberately
+re-seeded later as the repair task for the Layer-3 agent loop (Part 3):
+the layers feed each other counterexamples.
+
+### 2.4 The escalation ladder
+
+A bounded check is not a proof, and the method is explicit about which
+rung of assurance each artifact sits on (guardrail: bounded checking <
+inductive invariants < parameterized < liveness under fairness). The
+ladder, as actually climbed for this one protocol:
+
+| Rung | What it asserts | Artifact & real cost |
+|---|---|---|
+| 0 — random simulation | "30k traces found nothing" | `quint run`, seconds; found both design bugs in <1 s |
+| 1 — bounded symbolic | all behaviors ≤12 steps, fixed 2×2×2 constants | `quint verify --max-steps 12` (Apalache/SMT), ~10–60 s |
+| 2 — inductive invariant | every depth, fixed constants | a 7-conjunct hand-written strengthening + shape constraints; all three obligations verify in ~10 s (`prototypes/p4-agent-loop/protocol/migration.qnt`) |
+| 3 — parameterized | every depth AND every key/instance count | mypyvy/EPR (`prototypes/p6-parameterized-proof/`): verifies in 0.38 s; UPDR *inferred* a 9-clause invariant itself in 5.7 s |
+| 4 — liveness under fairness | the migration always completes | TLC over the complete 623-state graph (`prototypes/p7-liveness-proof/`) |
+
+Rules for climbing it:
+
+- **Climb only when the question demands it.** Rung 1 is the daily
+  driver. Rung 2's craft is *strengthening* — the property you care
+  about is rarely inductive by itself; the seven conjuncts (phase-shape
+  coupling, "O carries the logical value while live", drain
+  monotonicity…) are the protocol's real semantic content, and writing
+  them teaches you your own design.
+- **Negative controls must break the load-bearing guard.** When the
+  parameterized proof's negative control changed only the backfill
+  guard, it *still verified* — the protocol deadlocked instead of
+  corrupting, a safety-preserving liveness bug. Reproducing the real
+  historical bug required breaking the switch guard too. Lesson: a
+  negative control that doesn't fail the way the real bug failed is
+  testing the wrong thing.
+- **Liveness falsifies predictions too — sometimes favorably.** The
+  liveness proof was designed expecting a backfill-starvation
+  counterexample (adversarial writes keep dirtying rows). TLC refused
+  to produce one, and the reason is a genuine insight: after the drain,
+  every interfering write is a dual-write, so interference *does the
+  backfill's work*. The theorem came out stronger than requested —
+  completion needs no interference assumption, only fairness of the
+  deploy itself (drop rollout fairness and TLC hands you the
+  stalled-deploy lasso). Either direction, the tool settles it.
+
+The ∃-witness discipline from Layer 1 also reappears here as liveness:
+the frozen gate for this protocol counts `featDone` witnesses (can the
+migration complete at all?) precisely because safety alone is gameable
+— a protocol that can never switch reads satisfies every safety
+invariant above.
+
+### 2.5 Closing the model↔code gap: conformance
+
+The model verified the *design*. Your production system runs *code*,
+and the method's honest accounting says: **the model↔code boundary is
+held by tests, and tests are sampling, not proof.** What Layer 2 adds
+is that the sampling is *directed by the spec* — every check the
+harness makes is a formal invariant instantiated on HTTP, same
+vocabulary, traceable line by line.
+
+`prototypes/p3-conformance-harness/` is the shape to copy: a real
+Rust/axum API running as **two versions simultaneously** (version skew
+is the point), real Postgres, the real five-step migration
+(`expand → install-trigger → backfill → read-switch → contract`), six
+worker threads of mixed traffic, and the migration advancing in a
+background thread. Each harness check names its formal counterpart —
+I1 becomes
+
+```python
+if status == 200:
+    assert body["name"] == self.expected[uid], (
+        f"stale/wrong read via {base}: "
+        f"expected {self.expected[uid]!r}, got {body['name']!r}")
+```
+
+and "no request observes a column that is gone" becomes an error-text
+classifier (`is_schema_error`: a 5xx whose body says `does not exist`)
+— which works because the API deliberately surfaces raw Postgres error
+detail *for the harness's benefit*. Design your systems to be
+checkable: the observability the spec needs is part of the interface.
+
+What the harness caught, in real code that had passed its unit tests —
+**a TOCTOU race inside the *modern* instance**: v2 reads the migration
+flags, decides which SQL text to build, then executes it — two
+round-trips, not one transaction. If `contract` commits in that gap,
+the request has already committed to SQL referencing a dropped column.
+The predicted bug (a trigger/backfill lost-update) did *not*
+materialize — the trigger is atomic by construction — while the real
+bug was one level up, in request handling. The fix (a ~150 ms global
+quiesce at the cutover instant, exactly the atomic-rename pause
+gh-ost and pt-online-schema-change take) is itself model-shaped
+knowledge now. And the negative test stays forever: deliberately skip
+the drain and the harness must reproduce the anomaly — typically ~59
+`column does not exist` errors per run — empirical proof that the
+precondition is load-bearing, not decorative.
+
+Two stronger bridges exist when you need more than invariant-directed
+load (both demonstrated in `examples/cms/`):
+
+- **Model-based testing** (spec drives app): `quint run --mbt` emits
+  traces with the exact nondeterministic choices taken; an adapter
+  replays each step as one HTTP call and asserts acceptance parity and
+  observable-state parity. Result on the CMS: 240/240 steps parity,
+  and 6/6 model counterexamples replayed against the live app were
+  rejected at exactly the divergent step — named 403s, zero silent
+  vulnerabilities.
+- **Trace validation** (app drives spec): record which actions the
+  real app accepted, mechanically compile the log into a Quint `run
+  ... .expect(lastActionOk)`, and ask the checker "was this a legal
+  behavior of the model?" — conformance checking from client-side
+  logs, no instrumentation.
+
+Both are cheap because of the ghost-variable pattern: one boolean
+(`lastReadOk`, `lastActionOk`) carries the whole correctness story
+across the seam.
+
+### 2.6 The working loop and the ledger
+
+When a design has concurrency in it — a migration, a job, a saga, a
+cache — the loop is: write the model *instead of* the design doc
+(same length, executable); state the invariants as one-liners over
+ghost state; let simulation attack it (seconds); fix the design, keep
+the broken config as a negative control; escalate rungs only where the
+question demands; then hold the implementation to the same invariants
+with a conformance harness whose every assertion names its formal
+counterpart.
+
+**DX** — Quint reads like code, not like set theory; the model doubles
+as the design record (fixes annotated where they live); predictions
+get settled by a tool instead of a meeting. **Velocity** — two
+production-grade protocol bugs cost one red trace each, pre-code; the
+whole model is a day's work and 270 lines; rung-1 checks fit in CI.
+**Safety** — rung-labeled honesty: you always know whether you hold
+sampling, bounded, inductive, parameterized, or liveness evidence, and
+the ladder's upper rungs are real and priced (0.38 s EPR proofs exist;
+so do hand-written strengthenings that take an afternoon). The
+permanent tax is the model↔code seam — paid with spec-directed
+conformance, never waved away.
 
 ---
 
 ## Part 3 — Layer 3: the frozen gate and the agent loop
 
-<!-- TO FILL: P4 brief — never review agent diffs; mechanical freeze;
-loop driver; counterexamples as repair signal; episode 1 vs 2 (gate
-strength beats prompting); safety-only gate liveness gap; capability
-tokens; ledger. -->
+### 3.1 You never review agent diffs
+
+Layers 1 and 2 gave you specs machines can check. Layer 3 is what that
+buys: **agents write and repair the code, and no human reads their
+diffs.** What the human reads instead: the gate, the counterexamples,
+and the episode logs. The contract has four clauses, all mechanical:
+
+1. **The spec is frozen for the agent.** Code edits cannot weaken the
+   gate; spec edits are a human ceremony. This is the load-bearing
+   rule — without it the agent optimizes the gate instead of the code.
+2. **Counterexamples are the universal currency.** Checker traces (ITF
+   JSON), failing feature runs, named 403s — all normalized into
+   "violated invariant + concrete scenario" payloads that flow back to
+   the agent.
+3. **Green must be meaningful.** Prefer oracles with crisp completeness
+   stories (model-checked bounds, exhaustive checks) over "N random
+   runs found nothing"; layer them so the gaps of one are covered by
+   another.
+4. **Objective functions live outside the gate.** Performance and cost
+   are optimized only within the feasible region the spec defines. The
+   agent may make the system faster in any way it likes; it may not
+   make it wrong.
+
+And the staffing consequence, verbatim from the project's role
+doctrine: repairers are *deliberately weaker models* — "the gate, not
+the model, carries the correctness burden." Correctness spend goes
+into the gate once, not into per-task prompt craft or premium-model
+tokens forever.
+
+### 3.2 The freeze is mechanical
+
+"The spec is frozen" is enforced by code, never by convention or
+prompt. The repair loop's entire enforcement mechanism
+(`prototypes/p4-agent-loop/loop.py`) is a string comparison of the
+file's tail — everything below a marker line — with whole-file revert
+on mismatch:
+
+```python
+FROZEN_MARK = "==== INVARIANTS"
+
+def frozen_region(text: str) -> str:
+    idx = text.find(FROZEN_MARK)
+    if idx < 0:
+        sys.exit("frozen marker missing from protocol file")
+    return text[idx:]
+
+# ... after the agent runs:
+after = PROTOCOL.read_text()
+if frozen_region(after) != frozen_before:
+    PROTOCOL.write_text(before)
+    print(f"round {rnd}: SPEC EDIT DETECTED — reverted, round failed")
+```
+
+A round that touches the frozen region loses its code edits too — the
+round is wholly discarded and the budget is spent. The prompt *also*
+tells the agent not to touch the spec, but nothing depends on the
+agent listening; that is the point.
+
+The repo demonstrates three freeze mechanisms — pick per artifact:
+
+| Freeze | Mechanism | Used by |
+|---|---|---|
+| region-in-file | marker line + tail string-compare + revert | the protocol repair loop |
+| everything-except-one-path | `git status --porcelain` + `git checkout --` on any path but the allowed one | the optimization loop |
+| pinned gate directory | `analyze <edited rules> --gate <frozen dir>` | every Layer-1 service |
+
+### 3.3 Anatomy of the loop
+
+One driver, ~200 lines, four moving parts.
+
+**The gate ladder**, run each round: typecheck → frozen feature runs
+(`quint test`) → safety simulation over 30k traces **plus a
+completion witness** → optionally Apalache. The witness clause is the
+anti-"safest system does nothing" mechanism, ten lines of it:
+
+```python
+if ok:  # safety green: also require completion to be reachable at all
+    m = re.search(r"featDone was witnessed in (\d+)", out)
+    if not m or int(m.group(1)) == 0:
+        ok = False
+        out += "\nGATE FAILURE: migration completion (phase == P_DONE) " \
+               "was never reached in any explored trace — the protocol " \
+               "can no longer complete."
+```
+
+**The feedback**: on red, the failing stage's output tail plus the
+counterexample trace (ITF JSON, trimmed to first 2 + last 10 states)
+are formatted into the prompt. Machine-readable counterexamples are
+what make the loop closable — the agent gets the exact violating
+scenario, not a vibe.
+
+**The agent**: headless, tools cut to the bone:
+
+```python
+cmd = ["claude", "-p", "--model", model,
+       "--permission-mode", "acceptEdits",
+       "--allowedTools", "Read,Edit"]
+```
+
+No shell, no file creation — Read and Edit, on one file, with the
+prompt on stdin. The prompt itself is **entirely bug-agnostic**: it
+explains the domain, states the rules of engagement ("Edit ONLY the
+action definitions… Make the minimal protocol change… do not add
+artificial guards that merely disable functionality"), and pastes the
+counterexample. Nothing about the specific bug, ever.
+
+**The audit trail**: every round writes `prompt.txt`, the agent's own
+transcript, the resulting file, and the checker verdict to
+`episodes/<ep>/round-<k>/`. Episodes are replayable evidence — both
+episodes below are committed and quotable because of this.
+
+Budgets are explicit: 4 rounds default, 30,000 traces per check,
+timeouts per stage, exit 1 on budget exhaustion. A loop without a
+budget is an agent with an unbounded bill.
+
+### 3.4 The controlled experiment: gate strength beats prompting
+
+This is the project's core empirical result, and it is a genuinely
+controlled comparison — same seeded bug, same model, same generic
+prompt; **only the gate differs**.
+
+The task: the migration protocol from Part 2, with P1's real "bug #2"
+re-seeded (IS-NULL backfill + non-NULL switch check). The correct fix
+needs *two coupled edits*; the trap is that one of them alone is
+sound-but-partial.
+
+**Episode 1 — safety-only gate.** The repairer fixed the switch guard
+(`dbN != NULL` → `dbN == dbO`), with a correct explanatory comment —
+and left the backfill criterion broken. Every safety invariant held;
+30k traces clean; Apalache `NoError`. The loop declared victory. But
+the fix is partial: a row that went stale before the drain is never
+re-copied and now **blocks the switch forever**. The migration is safe
+and can no longer complete. *The safety-only gate accepted a fix that
+traded away liveness* — the checker did its job; the gate was
+underspecified.
+
+**Episode 2 — the gate grew both directions.** The frozen region
+gained a completion witness (`featDone`) and two scripted feature
+runs — a happy path, and an adversarial `staleRowRecoveryTest` that
+stages exactly the pre-drain-staled row and demands the migration
+machinery alone recover it. Protocol reset to the original double-bug
+state; prompt unchanged. Round 1's feedback was no longer a 22-state
+trace but a pointer at the exact required behavior that stopped being
+possible:
+
+```text
+1) staleRowRecoveryTest failed after 1 test(s)
+     Error [QNT513]: Cannot continue in `then` because the highlighted
+     expression evaluated to false
+      240:     .then(backfillBeginU(1))   // must be enabled for the stale row
+```
+
+The repairer produced the **full fix** — both edits, backfill
+`N != O` and switch `N == O` — in one round, feature runs green,
+completion witnessed in 84% of traces, Apalache clean.
+
+| | episode 1 | episode 2 |
+|---|---|---|
+| gate | safety invariants only | + feature runs + completion witness |
+| feedback to repairer | safety counterexample (ITF) | failing required-behavior run |
+| outcome | sound but partial fix; latent liveness regression accepted | full fix, one round |
+
+Zero prompt engineering separates the two outcomes. **With LLM
+repairers, invest in gate strength, not natural-language steering —
+the gate is what the system actually optimizes toward.** Notice also
+that the stronger gate produced *better feedback for free*: the
+failing feature run is a shorter, more targeted counterexample than
+the raw trace (episode 2's prompt was a quarter the size of episode
+1's). Well-chosen gate items are also well-chosen error messages.
+
+Two honesty footnotes, because controlled claims deserve them: the
+prompt's one framing paragraph did change (it describes what the gate
+now contains — no bug hint, no fix hint, verified by diff), and the
+correct trace-count figure for episode 2's green run is 30,000.
+
+### 3.5 The objective outside the gate: the optimization loop
+
+The same pattern pointed at performance instead of repair
+(`prototypes/p5-optimization-loop/`): the agent may edit exactly one
+file of a real Rust CMS server; the gate (boundary lint + the full
+policy/race suite) is frozen; a benchmark is the objective; an edit is
+accepted only if the gate is green *and* throughput improves ≥10%.
+The episode, four rounds:
+
+```text
+baseline: 62.9 rps   (p50 248 ms, p95 287 ms)
+round 1: GATE RED — reverted   (RwLock attempt, leftover Mutex ref: E0433)
+round 2: ACCEPTED — 248.1 rps  (p50 64 ms; gate fully green)
+round 3: gate green, 254.9 rps — below the 10% acceptance bar, reverted
+round 4: GATE RED — reverted   (axum::serve::Listener refactor: E0405)
+final: 248.1 rps — 3.94x speedup
+```
+
+Read the round pattern, because it is the whole value proposition:
+two broken attempts absorbed by the gate at zero human cost; one
+working-but-marginal micro-optimization rejected by the threshold
+rather than accumulating churn; and the accepted edit fixed exactly
+the two seeded performance defects, unprompted. 3.94× faster, never
+wrong, nobody read a diff.
+
+### 3.6 Boundaries by construction
+
+The strongest freeze is the one the compiler enforces. Where the
+language allows it, make bypassing the verified kernel a **compile
+error**, not a lint finding (`examples/cms/proof-spike/`): protected
+operations require a capability token only the kernel can mint —
+
+```rust
+#[non_exhaustive]
+pub struct Grant<Op> {
+    _op: PhantomData<Op>,
+}
+
+/// The kernel's one and only entry point. ... On success, returns a
+/// Grant<Op> — proof, checked by the compiler at every call site that
+/// needs one, that this decision was actually made.
+pub fn require<Op: Operation>(identity: Identity, meta: ArticleMeta)
+        -> Result<Grant<Op>, DeniedRule> {
+    Op::decide(identity, meta)?;
+    Ok(Grant { _op: PhantomData })
+}
+```
+
+`Operation` is a sealed trait, so app code cannot invent a fifth
+operation; `Grant` has a private field and `#[non_exhaustive]`, so it
+cannot be forged; and both failure modes are **pinned compile-fail
+tests**: forging a token is E0639, and holding *some* grant but not
+*this* one (`do_publish(edit_grant)`) is E0308 — "I checked SOME
+permission" stops compiling. Denials return a `DeniedRule` naming the
+same `inv_*` identifier the gate files use — the one-vocabulary rule
+again.
+
+The honest residue is documented next to the types, and you should
+document yours the same way: identity *freshness* is not the kernel's
+to guarantee (a stale cached identity is a TOCTOU in the caller —
+Layer-2 territory); a handler can call `require` and ignore the
+`Result` (a belt-and-suspenders lint greps for that shape); `unsafe`
+is out of scope. Python's kernel boundary (Part 1) is the same
+principle at lint strength; Rust buys you the compiler. Use the
+strongest enforcement the language offers, and *name* what remains
+convention.
+
+### 3.7 Running your own loop: the ledger
+
+The checklist, distilled from the episodes: freeze mechanically (pick
+one of the three mechanisms); gate both directions before the first
+round — episode 1 is what happens otherwise; keep the prompt generic
+and permanent; restrict tools to Read/Edit; log every round; make
+counterexamples machine-readable and invariant-named; set a round
+budget; and when a round produces a bad-but-green fix, the fix is a
+*new frozen gate item*, never a better prompt.
+
+**DX** — the review artifact shrinks from diffs to counterexamples and
+episode logs; every round is auditable after the fact; the failure
+modes are named (`SPEC EDIT DETECTED`, `GATE FAILURE: ... can no
+longer complete`) instead of discovered. **Velocity** — both repair
+episodes converged in one round; gate stages run in seconds-to-minutes;
+cheaper models carry the work because the gate carries the burden.
+**Safety** — the gate only ratchets: historic bugs stay as frozen
+FAIL-required variants, objectives cannot override correctness by
+construction, and the one genuinely dangerous move (weakening the
+gate) is a human ceremony that no agent can perform.
 
 ---
 
@@ -749,11 +1269,58 @@ the seam is already leaking.
 
 ### 4.4 A ticket that crosses all three layers
 
-<!-- TO FILL after briefs: worked composite — e.g. "org column split
-migration while the desk serves traffic": L1 tenancy rules unchanged &
-proven; L2 expand/contract model + conformance; L3 agent implements
-backfill under the frozen gate. Show the artifacts touched per layer
-and the counterexample flow between them. -->
+The composition is best shown on the ticket this repository actually
+ran, end to end: **"rename a column on a live table — zero downtime,
+no stale reads."** Follow one artifact chain through every layer; this
+all happened, in this order, and every step is committed.
+
+**Routing.** Per 4.1: the *tenancy and policy* of the data stays Layer
+1 (the org-wall rules don't change and stay proven through the
+migration — nothing about renaming a column may touch them). The
+*choreography* — backfill racing writes, two app versions live at
+once — is interleaving-shaped: Layer 2. The *code* — protocol fixes,
+the backfill implementation — is agent work: Layer 3.
+
+**Layer 2, design.** The expand/contract choreography became a
+270-line Quint model with three one-liner invariants. The checker
+falsified two successive designs the author believed correct (drain
+guard scope; IS-NULL backfill) — each fix annotated in the model where
+it lives.
+
+**Layer 2, code.** The conformance harness ran the real Rust API ×2
+versions against real Postgres under the same invariants (same
+vocabulary, line-for-line correspondence table) and caught a TOCTOU
+race in the modern instance that no model predicted — plus the
+permanent negative test: skip the drain, get ~59 anomalies, proving
+the model's precondition load-bearing in production code.
+
+**Layer 3.** The falsified design's bug #2 was re-seeded as the repair
+task. Episode 1's safety-only gate accepted a partial fix that traded
+away completion — and that counterexample became two frozen feature
+runs plus a completion witness (the ratchet, 4.5). Episode 2's
+strengthened gate forced the full fix from the same model and prompt
+in one round.
+
+**Escalation.** The repaired protocol then climbed the ladder:
+inductive invariant (safety at every depth), mypyvy/EPR (any number of
+keys and instances — where the negative control also certified the
+historical bug admits *no* inductive invariant at all), TLC liveness
+(completion needs only deploy fairness).
+
+The counterexample flow, layer to layer:
+
+```
+ falsified design #2 (L2 model trace)
+   → seeded repair task (L3)
+     → episode-1 partial fix exposes the gate gap (safety-only)
+       → gap becomes frozen feature runs + witness (gate ratchet)
+         → episode-2 full fix, one round, generic prompt
+           → proofs: inductive → parameterized → liveness (L2 ladder)
+```
+
+One ghost variable (`lastReadOk`) carries the correctness story from
+the first model trace to the conformance assertion to the frozen
+repair gate. That continuity — not any single layer — is the method.
 
 ### 4.5 Incidents: the ratchet
 
