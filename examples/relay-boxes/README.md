@@ -15,8 +15,8 @@ src/relay/                      REVIEWED — a human reads every line of a chang
   people.py                     who uses Relay (roles, actors)
   policy.py                     refusals as values, the rule registry
   kernel.py                     the only owner of state; DeskReader, its read-only face
-  cases/   model · lifecycle · rules · queues · pages      HD-1…HD-6
-  thread/  model · lifecycle · rules                       HD-8/9 (comments, evidence)
+  cases/   model · rules · queues · pages                  HD-1…HD-6
+  thread/  model · rules                                   HD-8/9 (comments, evidence)
   mail/    model · intake · gateway                        HD-7 (the mail robot)
   web/     routes · ui · server · seed                     the HTTP front
 src/generated/relay/            GENERATED — nobody reads it; the gate holds it
@@ -76,9 +76,15 @@ def sort_into_queues(cases: list[Case], today: date) -> list[Queue]:
 ```
 
 ```python
-# src/relay/cases/lifecycle.py and src/relay/cases/rules.py (REVIEWED)
-CASE = Lifecycle("case", CaseState, initial="new", terminal=("closed",), transitions=[
-    T("triage", "new", "open"), T("wait", "open", "waiting"), ...])
+# src/relay/cases/model.py (REVIEWED) — state transitions are plain data,
+# read by plain reviewed code in the kernel; not part of the DSL
+CASE_TRANSITIONS: dict[tuple[CaseState, CaseAction], CaseState] = {
+    ("new", "triage"): "open",          # HD-3
+    ("open", "wait"): "waiting",        # HD-3
+    ...
+}
+
+# src/relay/cases/rules.py (REVIEWED) — guard rules, the one policy piece boxkit provides
 
 @POLICY.deny("breach_needs_lead", "HD-5: once the SLA is breached …", on=("case",))
 def _(s: Situation) -> bool:
@@ -116,12 +122,12 @@ uv run pytest                                # all tests
 uv run relay                                 # serve http://127.0.0.1:8811/
 ```
 
-`boxkit check` stages: (1) contract modules carry no logic; (2) lifecycles
-are well-formed (reachability, determinism, declared terminals) and every
-rule names a declared entity; (3) boundary lint — nothing reviewed imports
-`generated`, and every generated module is the self-contained mirror of a
-contract module, on an import allowlist; (4) every box has a body that is
-present, fresh (spec hash) and type-correct against its stub.
+`boxkit check` stages: (1) contract modules carry no logic; (2) boundary
+lint — nothing reviewed imports `generated`, and every generated module is
+the self-contained mirror of a contract module, on an import allowlist;
+(3) every box has a body that is present, fresh (spec hash) and
+type-correct against its stub. (That every state is reachable and only
+tombstones are final is an ordinary reviewed test, `test/relay/test_policy.py`.)
 
 `check.sh` adds the framework's hostile-body tests, a check that the
 generated folders are collapsed in PRs, the reviewed tests (policy

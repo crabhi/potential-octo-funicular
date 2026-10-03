@@ -13,17 +13,22 @@ from __future__ import annotations
 import itertools
 from datetime import date
 
-from relay.cases.lifecycle import CASE, CASE_ACTIONS
-from relay.cases.model import Case
+from typing import get_args
+
+from relay.cases.model import (CASE_INITIAL, CASE_TRANSITIONS, Case, CaseAction,
+                               CaseState)
 from relay.kernel import ActorView, Desk
 from relay.people import Actor
-from relay.thread.lifecycle import (
-    ATTACHMENT,
-    ATTACHMENT_ACTIONS,
-    COMMENT,
-    COMMENT_ACTIONS,
-)
-from relay.thread.model import Attachment, Comment
+from relay.thread.model import (ATTACHMENT_INITIAL, ATTACHMENT_TRANSITIONS,
+                                COMMENT_INITIAL, COMMENT_TRANSITIONS, Attachment,
+                                AttachmentAction, AttachmentState, Comment,
+                                CommentAction, CommentState)
+
+# Every action the kernel decides, per entity: creation, reading, (editing,)
+# and the lifecycle actions. There is no delete action anywhere (HD-6).
+CASE_ACTIONS = ("open", "read", "edit", *get_args(CaseAction))
+COMMENT_ACTIONS = ("post", "read", *get_args(CommentAction))
+ATTACHMENT_ACTIONS = ("attach", "read", *get_args(AttachmentAction))
 
 TODAY = date(2026, 8, 14)
 DESK = Desk(TODAY, [])
@@ -34,7 +39,7 @@ ACTORS = [Actor(n, r, o, act)
                             ("bot", "mailbot", None), ("anon", "anonymous", None)]
           for act in (True, False)]
 CASES = [Case(1, subj, org, "cust", state, "med", assignee, sla)
-         for state in CASE.states
+         for state in get_args(CaseState)
          for org in ("acme", "zephyr")
          for assignee in (None, "agent", "lead", "other")
          for sla in (None, date(2026, 8, 1), date(2026, 9, 1))
@@ -43,11 +48,11 @@ COMMENTS = [Comment(1, 1, author, body, internal, state)
             for author in ("cust", "agent", "lead", "bot", "other")
             for body in ("", "hello")
             for internal in (False, True)
-            for state in COMMENT.states]
+            for state in get_args(CommentState)]
 ATTACHMENTS = [Attachment(1, 1, author, fn, state)
                for author in ("cust", "agent", "lead", "bot", "other")
                for fn in ("", "trace.log")
-               for state in ATTACHMENT.states]
+               for state in get_args(AttachmentState)]
 
 
 def case_grid():
@@ -108,7 +113,9 @@ def test_S4_S17_S23_nothing_is_deleted_or_edited_after_the_fact():
     for cls in (Desk, ActorView):
         assert not [m for m in dir(cls) if "delete" in m or "purge" in m]
     assert "edit" not in COMMENT_ACTIONS and "edit" not in ATTACHMENT_ACTIONS
-    assert COMMENT.terminal == ("redacted",) and ATTACHMENT.terminal == ("removed",)
+    # a tombstone is final: nothing leaves "redacted" or "removed"
+    assert not [k for k in COMMENT_TRANSITIONS if k[0] == "redacted"]
+    assert not [k for k in ATTACHMENT_TRANSITIONS if k[0] == "removed"]
 
 
 def test_S5_no_case_without_subject():
@@ -230,10 +237,28 @@ def test_P_witnesses_every_feature_is_actually_possible():
     assert all(W.values()), [k for k, v in W.items() if not v]
 
 
-def test_lifecycles_are_well_formed_and_frozen():
-    for lc in (CASE, COMMENT, ATTACHMENT):
-        assert lc.problems() == []
-    assert [(t.action, t.source, t.target) for t in CASE.transitions] == [
-        ("triage", "new", "open"), ("wait", "open", "waiting"),
-        ("reply", "waiting", "open"), ("resolve", "open", "resolved"),
-        ("reopen", "resolved", "open"), ("close", "resolved", "closed")]
+def reachable(initial, transitions):
+    seen, todo = set(), [initial]
+    while todo:
+        state = todo.pop()
+        if state not in seen:
+            seen.add(state)
+            todo += [nxt for (src, _), nxt in transitions.items() if src == state]
+    return seen
+
+
+def test_lifecycles_reach_every_state_and_only_tombstones_are_final():
+    for initial, table, states, final in [
+            (CASE_INITIAL, CASE_TRANSITIONS, CaseState, {"closed"}),
+            (COMMENT_INITIAL, COMMENT_TRANSITIONS, CommentState, {"redacted"}),
+            (ATTACHMENT_INITIAL, ATTACHMENT_TRANSITIONS, AttachmentState, {"removed"})]:
+        assert reachable(initial, table) == set(get_args(states))
+        dead_ends = {s for s in get_args(states) if not any(k[0] == s for k in table)}
+        assert dead_ends == final
+
+
+def test_the_case_lifecycle_is_frozen():
+    assert CASE_TRANSITIONS == {
+        ("new", "triage"): "open", ("open", "wait"): "waiting",
+        ("waiting", "reply"): "open", ("open", "resolve"): "resolved",
+        ("resolved", "reopen"): "open", ("resolved", "close"): "closed"}

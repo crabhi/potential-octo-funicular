@@ -10,6 +10,17 @@ CommentAction = Literal["redact"]
 AttachmentState = Literal["attached", "removed"]
 AttachmentAction = Literal["remove"]
 
+# Lifecycles: (state, action) -> next state. Both end in a tombstone that
+# stays on the record; nothing is ever deleted (HD-6).
+COMMENT_INITIAL: CommentState = "posted"
+COMMENT_TRANSITIONS: dict[tuple[CommentState, CommentAction], CommentState] = {
+    ("posted", "redact"): "redacted",   # HD-8
+}
+ATTACHMENT_INITIAL: AttachmentState = "attached"
+ATTACHMENT_TRANSITIONS: dict[tuple[AttachmentState, AttachmentAction], AttachmentState] = {
+    ("attached", "remove"): "removed",  # HD-9
+}
+
 
 @dataclass(frozen=True)
 class Comment:

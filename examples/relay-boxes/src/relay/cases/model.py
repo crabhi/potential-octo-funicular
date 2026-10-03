@@ -12,6 +12,18 @@ Severity = Literal["high", "med", "low"]
 CaseState = Literal["new", "open", "waiting", "resolved", "closed"]
 CaseAction = Literal["triage", "wait", "reply", "resolve", "reopen", "close"]
 
+# The case's lifecycle: (state, action) -> next state. Anything not listed
+# is not a transition. "closed" has no exits: closed means closed (HD-6).
+CASE_INITIAL: CaseState = "new"
+CASE_TRANSITIONS: dict[tuple[CaseState, CaseAction], CaseState] = {
+    ("new", "triage"): "open",          # HD-3
+    ("open", "wait"): "waiting",        # HD-3
+    ("waiting", "reply"): "open",       # HD-3: a customer reply pulls it back
+    ("open", "resolve"): "resolved",    # HD-4/5
+    ("resolved", "reopen"): "open",     # HD-4: the requester disputes
+    ("resolved", "close"): "closed",    # HD-6: the QA step
+}
+
 
 @dataclass(frozen=True)
 class Case:

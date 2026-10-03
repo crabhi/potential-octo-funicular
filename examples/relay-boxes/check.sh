@@ -12,7 +12,7 @@ echo "==== 1. framework: the sandbox holds against hostile bodies ===="
 $PY -m pytest -q test/boxkit
 
 echo
-echo "==== 2. the gate: contracts, lifecycles, boundary, fresh typed bodies ===="
+echo "==== 2. the gate: contracts, boundary, fresh typed bodies ===="
 $PY -m boxkit check src/relay
 if git rev-parse --git-dir >/dev/null 2>&1; then
   for f in src/generated/relay/cases/queues.py test/generated/relay/cases/test_queues.py; do
@@ -47,7 +47,7 @@ in_scratch() {  # <dir> <python args...> — run with the scratch copy's src/ fi
 }
 
 S=$(scratch); cat variants/route_mistyped.py >> "$S/src/generated/relay/web/routes.py"
-expect_fail "route body that mistypes its result (ty, gate stage 4)" \
+expect_fail "route body that mistypes its result (ty, gate stage 3)" \
   in_scratch "$S" -m boxkit check src/relay
 
 S=$(scratch); cat variants/case_page_unescaped.py >> "$S/src/generated/relay/cases/pages.py"
@@ -56,7 +56,7 @@ expect_fail "case page that forgets to escape (reviewed XSS test)" \
 
 S=$(scratch); echo "from generated.relay.web import routes  # a 'shortcut' around the sandbox" \
   >> "$S/src/relay/web/server.py"
-expect_fail "reviewed code importing generated code directly (boundary, gate stage 3)" \
+expect_fail "reviewed code importing generated code directly (boundary, gate stage 2)" \
   in_scratch "$S" -m boxkit check src/relay
 
 S=$(scratch); $PY - "$S/src/relay/cases/rules.py" <<'PYEOF'
@@ -74,7 +74,7 @@ p = sys.argv[1]; s = open(p).read()
 s2 = s.replace('severity (high, med, low), then by id ascending', 'severity (high, med, low), then by id descending')
 assert s2 != s; open(p, "w").write(s2)
 PYEOF
-expect_fail "a changed description leaves its body STALE (gate stage 4)" \
+expect_fail "a changed description leaves its body STALE (gate stage 3)" \
   in_scratch "$S" -m boxkit check src/relay
 
 echo

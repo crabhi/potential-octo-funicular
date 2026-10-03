@@ -27,7 +27,6 @@ import sys
 from types import ModuleType
 
 from .contract import Box, boxes_of, stub_for
-from .machine import Lifecycle, Policy
 
 GENERATED = "generated"
 IMPL_IMPORTS = {"__future__", "typing", "datetime", "dataclasses", "re", "json",
@@ -58,21 +57,6 @@ class App:
         for b in self.boxes:
             out.setdefault(b.module, []).append(b)
         return out
-
-    def _instances(self, cls: type) -> list:
-        seen, out = set(), []
-        for m in self.modules:
-            for v in vars(m).values():
-                if isinstance(v, cls) and id(v) not in seen:
-                    seen.add(id(v))
-                    out.append(v)
-        return out
-
-    def lifecycles(self) -> list[Lifecycle]:
-        return self._instances(Lifecycle)
-
-    def policies(self) -> list[Policy]:
-        return self._instances(Policy)
 
     def reviewed_sources(self) -> list[pathlib.Path]:
         return sorted(p for p in self.dir.rglob("*.py") if "__pycache__" not in p.parts)
@@ -181,17 +165,7 @@ def check(app: App) -> int:
     by_module = app.boxes_by_module()
     stage("1. contracts carry no logic", lint_contracts(app),
           f"{len(app.boxes)} body-less @blackbox declarations in {len(by_module)} modules")
-    lc = [p for l in app.lifecycles() for p in l.problems()]
-    entities = {l.entity for l in app.lifecycles()}
-    for pol in app.policies():
-        for r in pol.rules:
-            lc += [f"rule {r.id} governs undeclared entity {e!r}"
-                   for e in r.entities if e not in entities]
-    stage("2. lifecycles and rules are well-formed", lc,
-          ", ".join(f"{l.entity}: {len(l.states)} states/{len(l.transitions)} transitions"
-                    for l in app.lifecycles())
-          + f"; {sum(len(p.rules) for p in app.policies())} rules")
-    stage("3. boundary: generated code is reachable only through the sandbox",
+    stage("2. boundary: generated code is reachable only through the sandbox",
           lint_boundary(app), f"no reviewed module imports {GENERATED}; every "
                               f"{GENERATED} module mirrors a contract module")
 
@@ -212,7 +186,7 @@ def check(app: App) -> int:
             if diag:
                 problems.append(f"{boxes[0].generated_module}: TYPE ERROR against the "
                                 f"reviewed stub\n      " + diag.replace("\n", "\n      "))
-    stage("4. every box has a fresh, well-typed body (ty inside Monty)", problems,
+    stage("3. every box has a fresh, well-typed body (ty inside Monty)", problems,
           f"{len(by_module)} generated modules ({len(app.boxes)} boxes) type-check "
           f"against their stubs")
 

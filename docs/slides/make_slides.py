@@ -312,7 +312,7 @@ panel(40, 214, 430, 186)
 c.setFillColor(ACCENT_D); c.rect(40, 214, 6, 186, fill=1, stroke=0)
 c.setFont(FB, 12); c.drawString(58, 378, "REVIEWED — src/relay/, test/relay/")
 bullets(58, 354, [
-    "By business area: people · policy · kernel · cases/ · thread/ · mail/ · web/ — each holding its model, lifecycle, rules, contracts and effects.",
+    "By business area: people · policy · kernel · cases/ · thread/ · mail/ · web/ — each holding its model (incl. a plain transition table), rules, contracts and effects.",
     "Contracts: the types crossing the boundary, capability Protocols, and 8 body-less @blackbox signatures whose docstrings are the descriptions.",
     "29 guard rules (Policy.deny/allow, ids kept from the rule-engine Relay); the kernel decides every read and write, refusals as Denied values.",
     "Effects: web/server.py and mail/gateway.py — the only places box outputs become kernel calls.",
@@ -378,12 +378,10 @@ code_block(40, H - 96, 470, [
     ("$ uv run python -m boxkit check src/relay", "cmd"),
     ("== 1. contracts carry no logic", ""),
     ("  ok   8 body-less @blackbox declarations in 5 modules", "ok"),
-    ("== 2. lifecycles and rules are well-formed", ""),
-    ("  ok   case 5 states/6 transitions …; 29 rules", "ok"),
-    ("== 3. boundary: generated code only via the sandbox", ""),
+    ("== 2. boundary: generated code only via the sandbox", ""),
     ("  ok   no reviewed module imports generated; every", "ok"),
     ("       generated module mirrors a contract module", "ok"),
-    ("== 4. every box fresh + well-typed (ty inside Monty)", ""),
+    ("== 3. every box fresh + well-typed (ty inside Monty)", ""),
     ("  ok   5 generated modules (8 boxes) type-check", "ok"),
     ("GATE PASS (0 problems)", "ok"),
     "",
@@ -444,7 +442,7 @@ for px, (title, rk, gk) in zip((40, 490), (("Application code", "rev_code", "gen
 text_block(40, 112,
            f"Non-blank lines, counted from examples/relay-boxes when this deck is built (one shared scale for both "
            f"charts). Not shown: the boxkit framework — {FRAMEWORK:,} lines + {FRAMEWORK_TESTS:,} test lines, "
-           f"reviewed once for every app built on it. Thread has no generated code: it is data, lifecycle and rules "
+           f"reviewed once for every app built on it. Thread has no generated code: it is data, transitions and rules "
            f"only, rendered by the case pages.",
            size=9.8, width=880, color=MUTED)
 footer(); c.showPage()

@@ -179,3 +179,25 @@ Result: check.sh green — 10 framework + 44 reviewed + 300 generated tests,
 5/5 variants caught, 29/29 mutants killed, boot. Reviewed: 1,457 lines
 (people 20, policy 75, kernel 330, cases 250, thread 153, mail 119, web
 495) + 642 test lines; generated: 876 + 1,753 test lines.
+
+## Revision — state transitions leave the DSL (developer)
+
+"Simplify the lifecycle. This doesn't need to be a part of the DSL.
+Instead plain model objects and a reviewed Python logic will do."
+
+- `boxkit.Lifecycle`/`T` deleted; boxkit's policy module keeps only
+  `Policy`/`Rule`. The gate lost its lifecycle stage (now 3 stages:
+  contracts carry no logic, boundary, fresh typed bodies).
+- Each area's `model.py` holds its transitions as plain data next to the
+  state/action Literals they range over: `CASE_INITIAL`,
+  `CASE_TRANSITIONS: dict[tuple[CaseState, CaseAction], CaseState]`
+  (and the comment/attachment pair in `thread/model.py`). The two
+  `lifecycle.py` files are gone. The kernel looks transitions up
+  directly (`CASE_TRANSITIONS.get((state, action))`; actions available
+  from a state are the keys starting with it).
+- What the gate used to check structurally is now a reviewed test:
+  every declared state is reachable from the initial one, and the only
+  dead ends are the final states (closed, redacted, removed). Negative
+  direction verified: deleting `("resolved", "close")` fails it.
+- No body went STALE — transition tables were never in any box's stub.
+  check.sh green: 10 + 45 + 300 tests, 5/5 variants, 29/29 mutants.

@@ -37,6 +37,15 @@ contracts + generated bodies in Monty micro-sandboxes (note 17).
 
 ## Change log
 
+- 2026-10-03 (relay-boxes: state transitions leave the DSL — developer:
+  "plain model objects and reviewed Python logic will do"): `Lifecycle`/`T`
+  and the lifecycle gate stage removed from boxkit (now just `@blackbox` +
+  `Policy`); each area's model holds a plain `(state, action) -> state`
+  table, the kernel reads it directly, and reachability/"only tombstones
+  are final" is an ordinary reviewed test (verified to fail when a
+  transition is removed). No body went STALE. check.sh green (10 + 45 +
+  300 tests, 5/5 variants, 29/29 mutants).
+
 - 2026-10-03 (slides: the reviewed/generated split, counted): the deck
   gained an act VII slide that counts non-blank lines of
   examples/relay-boxes at build time and charts reviewed vs generated per

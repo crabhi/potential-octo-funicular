@@ -1,7 +1,7 @@
 """REVIEWED — the kernel: the only owner of Relay's state.
 
 Every read and write is decided by the guard rules (relay.policy, with the
-rules of relay.cases and relay.thread registered) over the lifecycles
+rules of relay.cases and relay.thread registered) over the transition tables
 before the store is touched; refusals come back as `Denied` values.
 
 `DeskReader` is the kernel as one actor sees it, read-only — the object
@@ -16,16 +16,17 @@ from __future__ import annotations
 import dataclasses
 import threading
 from datetime import date
-from typing import Protocol
+from typing import Protocol, get_args
 
 import relay.cases.rules  # noqa: F401  (registers the case rules)
 import relay.thread.rules  # noqa: F401  (registers the thread rules)
-from relay.cases.lifecycle import CASE
-from relay.cases.model import Case, CaseDraft, CasePatch
+from relay.cases.model import (CASE_INITIAL, CASE_TRANSITIONS, Case, CaseAction, CaseDraft,
+                               CasePatch)
 from relay.people import ANONYMOUS, Actor
 from relay.policy import POLICY, Affordance, Denied, Situation, lifecycle_refusal
-from relay.thread.lifecycle import ATTACHMENT, COMMENT
-from relay.thread.model import Attachment, AttachmentDraft, Comment, CommentDraft
+from relay.thread.model import (ATTACHMENT_INITIAL, ATTACHMENT_TRANSITIONS, COMMENT_INITIAL,
+                                COMMENT_TRANSITIONS, Attachment, AttachmentAction,
+                                AttachmentDraft, Comment, CommentAction, CommentDraft)
 
 
 class DeskReader(Protocol):
@@ -81,20 +82,20 @@ class Desk:
 
     # -- pure decisions ---------------------------------------------------------
     def decide_case(self, actor: Actor, action: str, case: Case) -> Denied | None:
-        if action in CASE.actions and CASE.step(case.state, action) is None:
+        if action in get_args(CaseAction) and (case.state, action) not in CASE_TRANSITIONS:
             return lifecycle_refusal("case", action, case.state)
         return POLICY.decide("case", Situation(actor, action, case, self.today))
 
     def decide_comment(self, actor: Actor, action: str, case: Case,
                        comment: Comment) -> Denied | None:
-        if action in COMMENT.actions and COMMENT.step(comment.state, action) is None:
+        if action in get_args(CommentAction) and (comment.state, action) not in COMMENT_TRANSITIONS:
             return lifecycle_refusal("comment", action, comment.state)
         return POLICY.decide("comment", Situation(actor, action, case, self.today,
                                                   comment=comment))
 
     def decide_attachment(self, actor: Actor, action: str, case: Case,
                           att: Attachment) -> Denied | None:
-        if action in ATTACHMENT.actions and ATTACHMENT.step(att.state, action) is None:
+        if action in get_args(AttachmentAction) and (att.state, action) not in ATTACHMENT_TRANSITIONS:
             return lifecycle_refusal("attachment", action, att.state)
         return POLICY.decide("attachment", Situation(actor, action, case, self.today,
                                                      attachment=att))
@@ -137,7 +138,7 @@ class Desk:
     def open_case(self, actor: Actor, draft: CaseDraft) -> Case | Denied:
         with self._lock:
             row = Case(id=self._ids["case"] + 1, subject=draft.subject.strip(),
-                       org=draft.org.strip(), requester=actor.name, state=CASE.initial,
+                       org=draft.org.strip(), requester=actor.name, state=CASE_INITIAL,
                        severity=draft.severity, assignee=None, sla_due=draft.sla_due)
             refused = self.decide_case(actor, "open", row)
             if refused:
@@ -151,12 +152,12 @@ class Desk:
             case = self._cases.get(case_id)
             if case is None:
                 return None
-            if action not in CASE.actions:
+            if action not in get_args(CaseAction):
                 return lifecycle_refusal("case", action, case.state)
             refused = self.decide_case(actor, action, case)
             if refused:
                 return refused
-            new = dataclasses.replace(case, state=CASE.step(case.state, action))
+            new = dataclasses.replace(case, state=CASE_TRANSITIONS[(case.state, action)])
             self._cases[case_id] = new
             return new
 
@@ -189,7 +190,7 @@ class Desk:
                 return None
             row = Comment(id=self._ids["comment"] + 1, case_id=case_id,
                           author=actor.name, body=draft.body.strip(),
-                          internal=draft.internal, state=COMMENT.initial)
+                          internal=draft.internal, state=COMMENT_INITIAL)
             refused = self.decide_comment(actor, "post", case, row)
             if refused:
                 return refused
@@ -203,12 +204,12 @@ class Desk:
             c = self._comments.get(comment_id)
             if c is None:
                 return None
-            if action not in COMMENT.actions:
+            if action not in get_args(CommentAction):
                 return lifecycle_refusal("comment", action, c.state)
             refused = self.decide_comment(actor, action, self._cases[c.case_id], c)
             if refused:
                 return refused
-            new = dataclasses.replace(c, state=COMMENT.step(c.state, action))
+            new = dataclasses.replace(c, state=COMMENT_TRANSITIONS[(c.state, action)])
             self._comments[comment_id] = new
             return new
 
@@ -220,7 +221,7 @@ class Desk:
                 return None
             row = Attachment(id=self._ids["attachment"] + 1, case_id=case_id,
                              author=actor.name, filename=draft.filename.strip(),
-                             state=ATTACHMENT.initial)
+                             state=ATTACHMENT_INITIAL)
             refused = self.decide_attachment(actor, "attach", case, row)
             if refused:
                 return refused
@@ -234,12 +235,12 @@ class Desk:
             a = self._attachments.get(attachment_id)
             if a is None:
                 return None
-            if action not in ATTACHMENT.actions:
+            if action not in get_args(AttachmentAction):
                 return lifecycle_refusal("attachment", action, a.state)
             refused = self.decide_attachment(actor, action, self._cases[a.case_id], a)
             if refused:
                 return refused
-            new = dataclasses.replace(a, state=ATTACHMENT.step(a.state, action))
+            new = dataclasses.replace(a, state=ATTACHMENT_TRANSITIONS[(a.state, action)])
             self._attachments[attachment_id] = new
             return new
 
@@ -284,7 +285,7 @@ class ActorView:
         if case is None:
             return []
         return [_afford(a, self._desk.decide_case(self._actor, a, case))
-                for a in CASE.actions_from(case.state)]
+                for (s, a) in CASE_TRANSITIONS if s == case.state]
 
     def may_edit(self, case_id: int) -> Affordance:
         case = self._readable(case_id)
@@ -314,7 +315,7 @@ class ActorView:
             return []
         case = d._cases[c.case_id]
         return [_afford(a, d.decide_comment(self._actor, a, case, c))
-                for a in COMMENT.actions_from(c.state)]
+                for (s, a) in COMMENT_TRANSITIONS if s == c.state]
 
     def attachment_actions(self, attachment_id: int) -> list[Affordance]:
         d = self._desk
@@ -323,7 +324,7 @@ class ActorView:
             return []
         case = d._cases[a.case_id]
         return [_afford(x, d.decide_attachment(self._actor, x, case, a))
-                for x in ATTACHMENT.actions_from(a.state)]
+                for (s, x) in ATTACHMENT_TRANSITIONS if s == a.state]
 
     def _readable(self, case_id: int) -> Case | None:
         got = self._desk.get_case(self._actor, case_id)
