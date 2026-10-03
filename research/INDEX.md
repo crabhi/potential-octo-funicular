@@ -37,6 +37,14 @@ contracts + generated bodies in Monty micro-sandboxes (note 17).
 
 ## Change log
 
+- 2026-10-03 (slides: the reviewed/generated split, counted): the deck
+  gained an act VII slide that counts non-blank lines of
+  examples/relay-boxes at build time and charts reviewed vs generated per
+  business area, for application code and tests on one shared scale
+  (today: code 1,168 reviewed · 773 generated; tests 495 · 1,343; the
+  boxkit framework reported separately). Colours from the deck's
+  reviewed/generated pair, re-stepped to pass the palette validator.
+
 - 2026-10-03 (relay-boxes simplified and restructured — three developer
   directives): (1) the review lock is gone — the PR diff is the review
   surface; generated folders are `linguist-generated` so GitHub collapses

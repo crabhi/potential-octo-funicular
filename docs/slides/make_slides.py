@@ -12,6 +12,8 @@ functionality, including the whole UI, in sandboxed bodies; a DSL splits
 reviewed and generated code into separate files. Acts I–VI (the rule-
 driven method and its field manual) stay as the evidence it is compared
 against.
+The act VII line split (reviewed vs generated, per business area) is counted
+from examples/relay-boxes at build time, so it always matches the repo.
 Usage: python3 make_slides.py  ->  formal-guardrails-slides.pdf
 (needs reportlab + pillow; screenshots come from img/, regenerate with
 examples/helpdesk/screenshots.py, examples/taskboard/screenshots.py and
@@ -170,6 +172,54 @@ def image_slide(kicker, title, img, caption, note=None):
     footer()
     c.showPage()
 
+
+
+# ---------------------------------------------------------- data: who reads what
+REVIEWED_C = HexColor("#14a08f")   # validated pair (dataviz validator, white surface):
+GENERATED_C = HexColor("#6C5CE7")  # CVD dE 20.4, normal dE 25.8, both >= 3:1 contrast
+RELAY_BOXES = HERE.parents[1] / "examples" / "relay-boxes"
+AREAS = [("core", "people · policy · kernel"), ("cases", "cases"), ("thread", "thread"),
+         ("mail", "mail"), ("web", "web")]
+
+
+def _nonblank(path):
+    return sum(1 for ln in path.read_text().splitlines() if ln.strip())
+
+
+def relay_lines():
+    """Non-blank lines of examples/relay-boxes, counted when the deck is built:
+    {area: {rev_code, gen_code, rev_test, gen_test}} plus the framework."""
+    roots = {"rev_code": "src/relay", "gen_code": "src/generated/relay",
+             "rev_test": "test/relay", "gen_test": "test/generated/relay"}
+    out = {a: dict.fromkeys(roots, 0) for a, _ in AREAS}
+    for kind, root in roots.items():
+        base = RELAY_BOXES / root
+        for f in base.rglob("*.py"):
+            if "__pycache__" in f.parts:
+                continue
+            rel = f.relative_to(base).parts
+            out[rel[0] if len(rel) > 1 else "core"][kind] += _nonblank(f)
+    framework = sum(_nonblank(f) for f in (RELAY_BOXES / "src/boxkit").glob("*.py"))
+    framework_tests = sum(_nonblank(f) for f in (RELAY_BOXES / "test/boxkit").glob("*.py"))
+    return out, framework, framework_tests
+
+
+def split_bar(x, y, w_rev, w_gen, h=16):
+    """Reviewed segment from the baseline, a 2px surface gap, then generated;
+    4px rounded data-end, square at the baseline."""
+    segs = [(w_rev, REVIEWED_C), (w_gen, GENERATED_C)]
+    segs = [(w, col) for w, col in segs if w > 0]
+    cx = x
+    for i, (w, col) in enumerate(segs):
+        c.setFillColor(col)
+        last = i == len(segs) - 1
+        if last and w > 4:
+            c.roundRect(cx, y, w, h, 4, fill=1, stroke=0)
+            c.rect(cx, y, 4, h, fill=1, stroke=0)   # square the start of the segment
+        else:
+            c.rect(cx, y, w, h, fill=1, stroke=0)
+        cx += w + (2 if not last else 0)
+    return cx
 
 # ----------------------------------------------------------------- slide 1
 c.setFillColor(INK)
@@ -359,13 +409,53 @@ text_block(40, 196,
            size=10.2, width=880, color=MUTED)
 footer(); c.showPage()
 
+# ---------------------------------------------------------- act VII slide C2
+LINES, FRAMEWORK, FRAMEWORK_TESTS = relay_lines()
+header("Act VII · who reads what", "The split, counted: lines a human reviews vs lines nobody reads")
+tot = {k: sum(LINES[a][k] for a, _ in AREAS) for k in ("rev_code", "gen_code", "rev_test", "gen_test")}
+# legend (>= 2 series: always present) + headline numbers in ink
+lx = 40
+for col, txt in [(REVIEWED_C, "reviewed by a human (src/relay, test/relay)"),
+                 (GENERATED_C, "generated, never read line by line (src/generated, test/generated)")]:
+    c.setFillColor(col); c.roundRect(lx, H - 112, 12, 12, 2, fill=1, stroke=0)
+    c.setFillColor(INK); c.setFont(F, 10.5); c.drawString(lx + 18, H - 110, txt)
+    lx += 18 + stringWidth(txt, F, 10.5) + 28
+scale_max = max(LINES[a][r] + LINES[a][g] for a, _ in AREAS
+                for r, g in (("rev_code", "gen_code"), ("rev_test", "gen_test")))
+for px, (title, rk, gk) in zip((40, 490), (("Application code", "rev_code", "gen_code"),
+                                            ("Tests", "rev_test", "gen_test"))):
+    panel(px, 128, 430, 266)
+    c.setFillColor(INK); c.setFont(FB, 12); c.drawString(px + 14, 374, title)
+    share = tot[gk] / max(1, tot[rk] + tot[gk])
+    c.setFont(F, 10); c.setFillColor(MUTED)
+    c.drawString(px + 14, 358, f"{tot[rk]:,} reviewed · {tot[gk]:,} generated "
+                               f"({share:.0%} of these lines are never read)")
+    bar_x, bar_w = px + 150, 200
+    c.setStrokeColor(PANEL_LINE); c.setLineWidth(1)
+    c.line(bar_x, 150, bar_x, 336)                       # the shared baseline
+    for i, (a, label) in enumerate(AREAS):
+        y = 316 - i * 36
+        r, g = LINES[a][rk], LINES[a][gk]
+        c.setFillColor(INK); c.setFont(F, 10)
+        c.drawRightString(bar_x - 10, y + 4, label)
+        end = split_bar(bar_x, y, bar_w * r / scale_max, bar_w * g / scale_max)
+        c.setFillColor(MUTED); c.setFont(F, 9)
+        c.drawString(end + 6, y + 4, "—" if r + g == 0 else f"{r:,} + {g:,}")
+text_block(40, 112,
+           f"Non-blank lines, counted from examples/relay-boxes when this deck is built (one shared scale for both "
+           f"charts). Not shown: the boxkit framework — {FRAMEWORK:,} lines + {FRAMEWORK_TESTS:,} test lines, "
+           f"reviewed once for every app built on it. Thread has no generated code: it is data, lifecycle and rules "
+           f"only, rendered by the case pages.",
+           size=9.8, width=880, color=MUTED)
+footer(); c.showPage()
+
 # ---------------------------------------------------------- act VII slide D
 header("Act VII · what happened", "The sandbox held; descriptions and tests were the weak links")
 items7 = [
     ("6 / 8", "boxes passed every reviewed test in round 1, written by brief-only sub-agents (a cheaper model) — incl. the whole 5-box UI family.", OK),
     ("2 = 2", "round-1 failures that sat EXACTLY on sentences the implementers had themselves flagged as ambiguous. Fixed in the contract; exactly those 2 bodies went STALE; 1 round each.", WARN),
     ("24→29", "rule-deletion mutants killed of 29: five allows had no witness — the reviewed suite was one-directional (guardrail 2, found by mutation). P17–P21 added; now a gate stage.", FREE),
-    ("1.5k : 0.9k", "reviewed : generated lines (+642 reviewed test lines). The rule-engine Relay reviews ~280 lines of rules + 440 of gate YAML; its engine is reviewed once.", ACCENT_D),
+    (f"{tot['rev_code']/1000:.1f}k : {tot['gen_code']/1000:.1f}k", f"reviewed : generated lines of application code (+{tot['rev_test']:,} reviewed test lines; by area on the previous slide). The rule-engine Relay reviews ~280 lines of rules + 440 of gate YAML; its engine is reviewed once.", ACCENT_D),
 ]
 x = 40
 for n, b, col in items7:
