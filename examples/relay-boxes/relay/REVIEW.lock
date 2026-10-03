@@ -1,0 +1,32 @@
+{
+  "approved_by": "claude-bootstrap (NOT yet human-reviewed)",
+  "approved_at": "2026-10-03",
+  "files": {
+    "__init__.py": "e3b0c44298fc1c14",
+    "boxes.py": "bc1feae2ac74f3fd",
+    "machine.py": "57d05c3d528ebf8d",
+    "model.py": "9b5f85767a50d009",
+    "shell.py": "c728de025a8b8e5c",
+    "tests/__init__.py": "e3b0c44298fc1c14",
+    "tests/reviewed/__init__.py": "e3b0c44298fc1c14",
+    "tests/reviewed/test_boxes.py": "eb421c0ae1efb43c",
+    "tests/reviewed/test_http.py": "ce345e921c3470b2",
+    "tests/reviewed/test_policy.py": "ad2c7d99247c112d",
+    "[boxkit]/__init__.py": "68fc71a7084a1856",
+    "[boxkit]/__main__.py": "50925818de176f79",
+    "[boxkit]/conform.py": "488453ec2711c89c",
+    "[boxkit]/contract.py": "c637bcc488305b22",
+    "[boxkit]/machine.py": "c653adc26107bba5",
+    "[boxkit]/sandbox.py": "491cb55fd81ed8e2"
+  },
+  "boxes": {
+    "route": "eca0884928aa8ec6",
+    "sort_into_queues": "5e72a58e6ccdcb85",
+    "sidebar": "363d56fe0035c8a5",
+    "queue_page": "8fcd004f2ae32df4",
+    "case_page": "a460f8a937830c08",
+    "new_case_page": "ad5a1dcad87e9717",
+    "document": "11c24c18c4d28105",
+    "intake_email": "76833c0e56256778"
+  }
+}

@@ -211,6 +211,13 @@ def test_P_witnesses_every_feature_is_actually_possible():
         "P14 robot files bodies":  exists(COMMENT_G, lambda a, c, m, act, ok: ok and act == "post" and a.role == "mailbot"),
         "P15 customers attach":    exists(ATTACH_G, lambda a, c, x, act, ok: ok and act == "attach" and a.role == "customer"),
         "P16 authors remove":      exists(ATTACH_G, lambda a, c, x, act, ok: ok and act == "remove" and a.role == "agent"),
+        # P17–P21 were added after a rule-deletion mutation run (DEVLOG):
+        # each of these allows could be deleted with P1–P16 still green
+        "P17 customers follow":    exists(CASE_G, lambda a, c, act, ok: ok and act == "read" and a.role == "customer"),
+        "P18 customers maintain":  exists(CASE_G, lambda a, c, act, ok: ok and act == "edit" and a.role == "customer"),
+        "P19 staff attach":        exists(ATTACH_G, lambda a, c, x, act, ok: ok and act == "attach" and a.role in STAFF),
+        "P20 leads remove others'": exists(ATTACH_G, lambda a, c, x, act, ok: ok and act == "remove" and a.role == "lead" and x.author != a.name),
+        "P21 robot attaches":      exists(ATTACH_G, lambda a, c, x, act, ok: ok and act == "attach" and a.role == "mailbot"),
     }
     assert all(W.values()), [k for k, v in W.items() if not v]
 

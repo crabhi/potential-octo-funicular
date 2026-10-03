@@ -222,10 +222,11 @@ def route(req: HttpRequest) -> Route:
       "/comment/<cid>/redact"    with form "case" -> RedactComment(case, cid)
       "/attachment/<aid>/remove" with form "case" -> RemoveAttachment(case, aid)
       "/persona"          -> SwitchPersona(form "persona", "" if absent)
-    Ids are positive decimal integers. A malformed field (bad date, unknown
-    severity or action, missing or non-numeric case id) yields
-    Invalid(message naming the field, back = the page the form came from:
-    ShowCase for case forms, ShowNewCase for "/case", ShowQueue("inbox")
+    Ids are positive decimal integers; a path whose id is not one matches
+    no route. A malformed FORM field (bad date, unknown severity or action,
+    a missing or non-numeric "case" field) yields Invalid(message naming
+    the field, back = the page the form came from: ShowCase for
+    "/case/<id>/..." forms, ShowNewCase for "/case", ShowQueue("inbox")
     otherwise). Anything else -> NotFound(). Text fields are passed
     through as typed (the kernel trims and validates them)."""
     ...
@@ -334,14 +335,17 @@ def document(sidebar_html: str, content_html: str) -> str:
 def intake_email(mail: Email, org_of: OrgDirectory) -> MailIntent:
     """HD-7: interpret one inbound email for the mail robot.
 
-    A subject containing "[#<id>]" (anywhere, any case) is a reply to case
-    <id>: MailReply(id, body, attachments). Otherwise it opens a case:
+    For every outcome below, "body" means the email body with surrounding
+    whitespace trimmed, and "attachments" the attachment names as given,
+    dropping empty ones.
+
+    A subject containing "[#<id>]" (anywhere) is a reply to case <id>:
+    MailReply(id, body, attachments). Otherwise it opens a case:
     the sender's org is `org_of(mail.sender)` — if None, MailBounce naming
     the unknown sender. The case subject is the email subject with leading
     "Re:"/"Fwd:"/"Fw:" prefixes (any case, repeated) removed and whitespace
     trimmed; if that leaves nothing, MailBounce("empty subject"). Severity
     is "high" if the subject or body contains "urgent" or "outage" (any
-    case), else "med"; sla_due is None (staff set it). The body is passed
-    on with surrounding whitespace trimmed; attachment names as given,
-    dropping empty ones."""
+    case), else "med"; sla_due is None (staff set it):
+    MailNewCase(draft, body, attachments)."""
     ...

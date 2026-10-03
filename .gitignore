@@ -9,3 +9,4 @@ prototypes/p1-migration-model/tmp/
 .hypothesis/
 prototypes/p6-parameterized-proof/mypyvy/
 prototypes/p6-parameterized-proof/venv/
+examples/relay-boxes/.venv/
