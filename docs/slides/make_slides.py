@@ -4,15 +4,18 @@
 Audience: engineers without prior formal-verification background.
 Regenerated ground-up from the current repository state (see CLAUDE.md
 workflow rule: the deck always describes the repo, never accretes).
-This edition leads with act VI (the field manual): the developer asked
-for the best approaches by DX, velocity and safety written up as
-teaching manuals — then redirected: they are layers of ONE method, so
-one compound manual with the composition first-class. docs/manual.md
-is the deliverable; Clearance (examples/approvals/) is its executable
-worked example. Acts I–V are compressed to evidence.
+This edition leads with act VII (typed black boxes in Monty micro-
+sandboxes, research note 17): the developer asked for another approach —
+humans review the data model, state transitions and the TYPES of black
+boxes (with LLM-drafted, human-reviewed descriptions); LLMs implement all
+functionality, including the whole UI, in sandboxed bodies; a DSL splits
+reviewed and generated code into separate files. Acts I–VI (the rule-
+driven method and its field manual) stay as the evidence it is compared
+against.
 Usage: python3 make_slides.py  ->  formal-guardrails-slides.pdf
 (needs reportlab + pillow; screenshots come from img/, regenerate with
-examples/helpdesk/screenshots.py and examples/taskboard/screenshots.py)
+examples/helpdesk/screenshots.py, examples/taskboard/screenshots.py and
+examples/relay-boxes/screenshots.py)
 """
 import pathlib
 
@@ -83,7 +86,7 @@ def footer(title_page=False):
         return
     c.setFont(F, 8.5)
     c.setFillColor(MUTED)
-    c.drawString(40, 20, "Formal guardrails for LLM agents · the field manual · 2026-08-15")
+    c.drawString(40, 20, "Formal guardrails for LLM agents · act VII: typed black boxes · 2026-10-03")
     c.drawRightString(W - 40, 20, str(page[0]))
 
 
@@ -175,17 +178,17 @@ c.setFillColor(FREE)
 c.rect(0, 118, W, 5, fill=1, stroke=0)
 c.setFillColor(WHITE)
 c.setFont(FB, 33)
-c.drawString(70, 350, "The method, written down")
+c.drawString(70, 350, "Review the contracts, generate the bodies")
 c.setFont(FB, 20)
 c.setFillColor(HexColor("#B3A8FF"))
-c.drawString(70, 315, "formal guardrails for LLM agents, act VI: the field manual")
+c.drawString(70, 315, "formal guardrails for LLM agents, act VII: typed black boxes in Monty sandboxes")
 c.setFont(F, 15)
 c.setFillColor(HexColor("#AFC3CF"))
-c.drawString(70, 264, "docs/manual.md — one compound manual teaching the three layers as one method: rules as the")
-c.drawString(70, 242, "program, models before code, the frozen gate + agent loop — with the composition first-class.")
+c.drawString(70, 264, "Humans review the data model, the state transitions + guard rules, and the TYPES of black boxes;")
+c.drawString(70, 242, "LLMs write every body — the whole UI included — into micro-sandboxes the gate holds them to.")
 c.setFont(F, 12)
-c.drawString(70, 172, "Every transcript is real output; the worked example is a sixth committed service (Clearance) whose")
-c.drawString(70, 154, "check.sh must PASS its gate and FAIL its preserved round-1 draft. August 2026.")
+c.drawString(70, 172, "Relay (the helpdesk of acts IV–V) rebuilt on a ~1,100-line framework: 8 boxes, 29 rules, every claim")
+c.drawString(70, 154, "re-runnable from examples/relay-boxes/check.sh. Acts I–VI follow as the method it is compared against. October 2026.")
 c.setFont(F, 11)
 c.setFillColor(HexColor("#7E93A3"))
 c.drawString(70, 88, "No formal-methods background assumed — the four concepts you need are on slide 3.")
@@ -245,6 +248,155 @@ for i, (t, b) in enumerate(data):
     c.drawString(x + 16, yy - 28, t)
     text_block(x + 16, yy - 50, b, size=11.5, width=388)
 footer(); c.showPage()
+
+# ---------------------------------------------------------- act VII slide A
+header("Act VII · the redirect", "Review the contracts, generate the bodies — in micro-sandboxes")
+text_block(40, H - 100,
+           "“Try another approach. Micro sandboxes with Monty. Let the developer review the data model and state "
+           "transitions … the types of black boxes. Then let the LLM implement all functionality in typed blackboxes … "
+           "Each blackbox contains a human reviewed, llm-generated description.” Asked back before building: Relay as "
+           "the domain (head-to-head with acts IV–V), guards stay reviewed code, boxes are held by types + descriptions "
+           "+ tests (reviewed tests split from generated), the DSL is plain decorators + a file convention.",
+           size=10.5, width=880, color=MUTED, font=FI)
+panel(40, 214, 430, 186)
+c.setFillColor(ACCENT_D); c.rect(40, 214, 6, 186, fill=1, stroke=0)
+c.setFont(FB, 12); c.drawString(58, 378, "REVIEWED by a human — hash-locked")
+bullets(58, 354, [
+    "model.py — frozen dataclasses, closed Literal vocabularies (115 lines).",
+    "machine.py — lifecycles (Lifecycle/T), 29 guard rules (Policy.deny/allow, ids kept from the rule-engine Relay), and the kernel: every read and write decided, refusals as Denied values.",
+    "boxes.py — the types crossing the boundary, capability Protocols, and 8 body-less @blackbox signatures whose docstrings are the descriptions.",
+    "shell.py — HTTP, cookies, the mail webhook: the only place box outputs become effects.",
+    "tests/reviewed/ — the human-owned half of acceptance.",
+], 400, size=9.2, gap=5)
+panel(490, 214, 430, 186)
+c.setFillColor(FREE); c.rect(490, 214, 6, 186, fill=1, stroke=0)
+c.setFont(FB, 12); c.setFillColor(FREE); c.drawString(508, 378, "GENERATED by an LLM — never read line by line")
+bullets(508, 354, [
+    "impl/<box>.py — routing, every view and template, the stylesheet, queue logic, inbound-mail parsing (910 lines).",
+    "Runs ONLY inside Monty (pydantic-monty 1.0): no filesystem, network, env; CPU + memory bounded; ~2 ms a call.",
+    "Sees only what its signature hands it: data as read-only views, capabilities (DeskReader = the kernel as one actor sees it, read-only; esc; org_of), constructors for the reviewed types its contract names.",
+    "Cannot write state: it returns values; the reviewed shell turns them into ONE kernel call.",
+    "tests/generated/ — additive, never a substitute.",
+], 400, size=9.2, gap=5, dot_color=FREE)
+text_block(40, 190,
+           "Compared with acts II–VI: the unreviewed surface grows from “the UI” to “everything that is not data, "
+           "transitions, policy or effects”. The question becomes whether types + a reviewed description + tests + a "
+           "sandbox hold a body well enough that nobody needs to read it.",
+           size=10.5, width=880, color=ACCENT_D)
+footer(); c.showPage()
+
+# ---------------------------------------------------------- act VII slide B
+header("Act VII · the DSL", "Plain Python, one file convention — boxkit derives the rest")
+code_block(40, H - 96, 455, [
+    ("# relay/boxes.py  (REVIEWED)", "dim"),
+    ("class DeskReader(Protocol):     # object capability", ""),
+    ("    def cases(self) -> list[Case]: ...", ""),
+    ("    def case_actions(self, case_id: int)", ""),
+    ("        -> list[Affordance]: ...", ""),
+    ("Escape = Callable[[str], str]   # function capability", ""),
+    "",
+    ("@blackbox", "cmd"),
+    ("def sort_into_queues(cases: list[Case],", "cmd"),
+    ("                     today: date) -> list[Queue]:", "cmd"),
+    ('    """Partition the cases … into the six queues …', ""),
+    ('    "SLA breached" is a cross-state view …"""', ""),
+    ("    ...                         # no body, ever (lint)", "dim"),
+    "",
+    ("# relay/impl/sort_into_queues.py  (GENERATED)", "dim"),
+    ("# boxkit: generated implementation of", "ok"),
+    ("#   `sort_into_queues` against spec 5e72a58e6ccdcb85", "ok"),
+    "",
+    ("# relay/machine.py  (REVIEWED)", "dim"),
+    ('CASE = Lifecycle("case", CaseState, initial="new",', ""),
+    ('    transitions=[T("triage", "new", "open"), ...])', ""),
+    ('@POLICY.deny("breach_needs_lead", "HD-5: …",', ""),
+    ('             on=("case",))   # entity tag mandatory', ""),
+], size=8.3)
+panel(515, 236, 405, 220)
+c.setFont(FB, 11.5); c.setFillColor(ACCENT_D)
+c.drawString(529, 434, "Derived mechanically per box")
+bullets(529, 410, [
+    "STUB — the transitive closure of reviewed types its signature names, copied verbatim, + a BoxkitContract protocol. The implementer's whole world (boxkit brief); ty checks the body against it INSIDE Monty.",
+    "SPEC HASH — over stub + description, pinned in the body's first line. Change a type the box uses, or its description, and exactly that body is STALE.",
+    "CONSTRUCTORS — only reviewed dataclasses in the closure can be built by the sandbox; results come back as genuine reviewed types.",
+    "CONFORMANCE — every value crossing either way is checked against the reviewed annotation (dataclasses don't validate themselves); Protocol objects expose exactly the protocol's methods.",
+    "REVIEW.lock — sha256 of every reviewed file + contract; boxkit approve --by <human> is the only way to move it.",
+], 386, size=8.9, gap=5)
+text_block(40, 196,
+           "on= is mandatory on every rule: the rule engine's “untagged = root only” default failed OPEN for global "
+           "denies (act V); here that sharp edge cannot be written.",
+           size=10.2, width=880, color=MUTED)
+footer(); c.showPage()
+
+# ---------------------------------------------------------- act VII slide C
+header("Act VII · the gate", "Both directions: good code PASSES, preserved bad variants must FAIL")
+code_block(40, H - 96, 470, [
+    ("$ python -m boxkit check relay", "cmd"),
+    ("== 1. review lock: reviewed code is what a human approved", ""),
+    ("  ok   16 reviewed files, 8 contracts match REVIEW.lock", "ok"),
+    ("== 2. contracts carry no logic", ""),
+    ("  ok   8 body-less @blackbox declarations", "ok"),
+    ("== 3. lifecycles and rules are well-formed", ""),
+    ("  ok   case 5 states/6 transitions …; 29 rules", "ok"),
+    ("== 4. boundary: generated code only via the sandbox", ""),
+    ("  ok   no reviewed module imports impl/", "ok"),
+    ("== 5. every box fresh + well-typed (ty inside Monty)", ""),
+    ("  ok   8 implementations type-check against stubs", "ok"),
+    ("GATE PASS (0 problems)", "ok"),
+    "",
+    ("# after tightening two descriptions:", "dim"),
+    ("  FAIL route: STALE — written against spec 3b87232a…,", "fail"),
+    ("       contract is now eca08849… (regenerate)", "fail"),
+    ("  FAIL intake_email: STALE — written against 3a53de2b…", "fail"),
+], size=8.3, dark=True)
+panel(530, 222, 390, 234)
+c.setFont(FB, 11.5); c.setFillColor(ACCENT_D)
+c.drawString(544, 434, "check.sh, stage by stage")
+bullets(544, 410, [
+    "Framework: 10 hostile bodies — file/env/socket access, out-of-contract types, host mutation, non-protocol methods, ill-typed capability calls, runaway CPU/memory — all caught.",
+    "The gate above.",
+    "Reviewed tests: policy grid of 285,120 situations (S1–S29 + P1–P21 from the rule-engine Relay), box behaviour, hostile text on every page × persona, every rendered link is a known route, forged HTTP requests 403 by rule name. Then generated tests.",
+    "Must FAIL: mistyped body · unescaped page · unapproved kernel edit · kernel without the org wall · description change leaving its body STALE.",
+    "Mutation: delete ANY of the 29 rules → a reviewed test must break.",
+], 362, size=8.8, gap=5)
+text_block(40, 196,
+           "Mechanical outside the repo too: REVIEW.lock + reviewed paths under CODEOWNERS / branch protection, agent "
+           "harness denies edits to them. Today's lock is a bootstrap stamp — the human review is pending, and says so.",
+           size=10.2, width=880, color=MUTED)
+footer(); c.showPage()
+
+# ---------------------------------------------------------- act VII slide D
+header("Act VII · what happened", "The sandbox held; descriptions and tests were the weak links")
+items7 = [
+    ("6 / 8", "boxes passed every reviewed test in round 1, written by brief-only sub-agents (a cheaper model) — incl. the whole 5-box UI family.", OK),
+    ("2 = 2", "round-1 failures that sat EXACTLY on sentences the implementers had themselves flagged as ambiguous. Fixed in the contract; exactly those 2 bodies went STALE; 1 round each.", WARN),
+    ("24→29", "rule-deletion mutants killed of 29: five allows had no witness — the reviewed suite was one-directional (guardrail 2, found by mutation). P17–P21 added; now a gate stage.", FREE),
+    ("1.3k : 0.9k", "reviewed : generated lines (+566 reviewed test lines). The rule-engine Relay reviews ~280 lines of rules + 440 of gate YAML; its engine is reviewed once.", ACCENT_D),
+]
+x = 40
+for n, b, col in items7:
+    panel(x, 262, 205, 170)
+    c.setFont(FB, 20); c.setFillColor(col)
+    c.drawString(x + 14, 400, n)
+    text_block(x + 14, 380, b, size=8.7, width=178)
+    x += 225
+bullets(40, 232, [
+    "Ask implementers for an ambiguity report per box: it is a review checklist for the description, written by the only reader that takes it literally.",
+    "Properties BETWEEN boxes (shared CSS classes; links must be routes) are not box types: generate coupled boxes as a family, and pin the cross-box property in a reviewed test.",
+    "Capabilities make security testable: Monty has no html module, so escaping is the reviewed esc capability — and “did every page use it” is a reviewed hostile-text test the preserved unescaped variant must fail. Redacted bodies are withheld BY THE KERNEL — a box never receives them.",
+    "Trade: policy predicates are grid-checked, not symbolically analyzed (falsifier BX-2); the kernel is per-app reviewed code. The two methods compose — the obvious next experiment.",
+], 880, size=9.8, gap=5)
+footer(); c.showPage()
+
+# ---------------------------------------------------------- act VII slide E
+image_slide("Act VII · the generated UI", "Every pixel generated; the refusal comes from the reviewed kernel",
+            IMG / "boxes-refusal-quinn.png",
+            "quinn (agent) pressed the locked “resolve” on sam's case: the generated case_page rendered it as a still-clickable "
+            "locked affordance; the reviewed kernel refused by name (only_assignee_resolves, HD-4); the generated page shows the "
+            "Denied value it was handed.",
+            "No HTML in this screenshot was reviewed by a human. Held instead by: ty against the reviewed stub, conformance on "
+            "every value, the DeskReader capability (read-only, per actor), and reviewed tests — hostile text on every page × "
+            "persona, every link a known route, forged requests 403 by rule name.")
 
 # ----------------------------------------------------------------- slide 4
 header("Act I in one slide (2026-07)", "Proofs beside the code: it works — and it has a tax")
@@ -629,7 +781,8 @@ bullets(40, 224, [
     "Layer 1: Flowdeck tickets → green gate ≈ 1 hour, 4 rounds × 0.18 s, 2 real authorization holes caught pre-code; Relay 33 rules over 3 entities in 721 lines of YAML, solver round ~0.4 s.",
     "Layer 2: two migration designs falsified pre-code in <1 s each; proofs to every depth (inductive), every size (EPR, 0.38 s), and liveness (TLC, 623 states); the harness caught a real TOCTOU race and reproduces 59 anomalies on demand.",
     "Layer 3: full fix in 1 round from a stronger gate (controlled, same prompt); 3.94× speedup with two broken attempts absorbed; capability tokens make kernel bypass a compile error (E0639/E0308, pinned).",
-], 880, size=10, gap=6)
+    "Act VII (alternative surface): Relay as reviewed contracts + 8 generated bodies in Monty; gate PASS, 29/29 rule-deletion mutants killed, 5 bad variants FAIL as required.",
+], 880, size=9.4, gap=5)
 text_block(40, 100,
            "What the analyzer asks of every rule change, in seconds, per entity: dead rules · stale assumptions · "
            "∀-safety · ∃-possibility · lifecycle liveness + gated entries · frozen features with refusals by name.",
@@ -676,6 +829,7 @@ bullets(40, H - 264, [
     "DX1 now has its instrument: hand an outside developer TICKETS.md + docs/manual.md — do they ship a ruled app in under a day without touching the engine? DX2 — the same tickets implemented conventionally by a strong LLM: does it contain the interaction holes the gates caught?",
     "ME-1 — aggregates, when a ticket forces them: kernel-computed aggregate projections, conservatism stated. ME-6 — cascade-decides or the load-time check. ME-5 — the fail-open lint.",
     "KB1 — red-team the boundary lint. KB2/ME-4 — a reporting/read seam that still applies the read rule per row. KB3 — concurrent writers between decide and write, on real Postgres (the P3 harness). KB4 — nearest-allow refusal explanations that do not leak across tenants.",
+    "Act VII: BX-2 — check the reviewed predicates symbolically (Z3) instead of on a grid; BX-3 — boxes that sequence writes via a DeskWriter capability; BX-1 — regenerate each box N times: what varies? Compose: boxes over the rule engine's kernel.",
     "RB3 — ticket→rule-diff vs ticket→handler fidelity, measured. P8 — the same rules as Cedar policies. P9 — the invariant→Postgres-constraint compiler nobody has built.",
 ], 880, size=10, gap=6)
 c.setFont(FB, 12)
@@ -705,8 +859,8 @@ for i, ln in enumerate([
 c.setFont(F, 11.5)
 c.setFillColor(HexColor("#8FA5B5"))
 c.drawString(70, 210, "Read it: docs/manual.md — the field manual (start at Part 0; Part 1 builds examples/approvals/)")
-c.drawString(70, 190, "Run it: examples/approvals/check.sh · examples/helpdesk/check.sh + python app.py · prototypes/p1..p7")
-c.drawString(70, 170, "The stack beneath: research/INDEX.md · notes 13–16 (rules, DX, boundary, relations) · 09–12 (proofs)")
+c.drawString(70, 190, "Run it: examples/relay-boxes/check.sh (act VII) · examples/approvals/check.sh · examples/helpdesk/check.sh · prototypes/p1..p7")
+c.drawString(70, 170, "The stack beneath: research/INDEX.md · note 17 (black boxes) · 13–16 (rules, DX, boundary, relations) · 09–12 (proofs)")
 footer(title_page=True)
 c.showPage()
 

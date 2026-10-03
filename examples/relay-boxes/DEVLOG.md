@@ -67,3 +67,43 @@ Open description-review items (not fixed — for the human reviewer):
 `sort_into_queues` says "Partition" although the breached queue overlaps
 the state queues; the bounce wording of `intake_email` is unspecified
 (tests do not pin it — deliberately).
+
+## Round 1 — the UI family (document, sidebar, queue_page, case_page, new_case_page)
+
+One implementer for all five, because they share an implicit vocabulary
+no box type expresses: CSS class names (`document` owns the stylesheet;
+the pages use the classes). Generating them separately would have needed
+that vocabulary in the reviewed contract. Brief-only, as before.
+
+- 3 gate iterations (forgot `from datetime import date` / `import json`
+  — ty inside Monty named both), 2 render runs. **All 44 reviewed tests
+  passed in round 1**, including hostile text on every page × 5 personas
+  and "every rendered link/form is a route the router knows" (a property
+  between two independently generated boxes).
+- 22 ambiguity notes (persona-switch target, "Assign to me" scope,
+  tombstone wording, notice headings…). None contradicted a reviewed
+  test; all are presentation freedom the description deliberately leaves
+  open. One self-imposed caution worth noting: it omitted the filename of
+  removed attachments "as a precaution" — stricter than the description.
+- Checked in a real browser (Playwright): persona switch via htmx sets
+  the cookie and re-renders without nesting; pressing a locked "resolve"
+  as quinn swaps in the named refusal (`only_assignee_resolves`, HD-4).
+  Screenshots: `docs/slides/img/boxes-*.png` (`python screenshots.py`).
+
+## The mutation run (guardrail 2, found by machine)
+
+Deleting each of the 29 guard rules in turn: **24/29 killed** by the
+reviewed policy grid. The five survivors were all ALLOW rules no witness
+exercised (customer_follows, customer_edits, staff_attach, lead_removes,
+mailbot_attaches) — a reviewed suite that would let an agent quietly take
+features away. Added witnesses P17–P21 → **29/29 killed**; `mutants.py`
+is now stage 5 of `check.sh`. (The rule-engine Relay's gate adds
+features.yaml step runs on top of its ∃-witnesses; whether those cover
+the same five rules was not checked here.)
+
+## Review burden (honest)
+
+Reviewed: model 115 + machine 544 + boxes 351 + shell 321 = 1,331 lines,
+plus 566 lines of reviewed tests. Generated: 910 lines (8 boxes). The
+rule-engine Relay: 278 lines of rules + 443 of gate YAML reviewed per app,
+764 lines of free UI, and an engine reviewed once for all apps.

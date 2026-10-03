@@ -21,6 +21,7 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [14-developer-experience.md](14-developer-experience.md) | DX study: Flowdeck (multi-tenant kanban SaaS) built end to end as rules with a generic web UI; 4 rounds × 0.18 s, 2 real authz holes caught, frictions enumerated; falsifiers DX1–DX3 | draft |
 | [15-kernel-boundary-free-ui.md](15-kernel-boundary-free-ui.md) | Guardrail 10: the verified boundary is a function-level kernel API; the UI (htmx) is agent-authored and free; boundary lint, two-phase edits, Relay helpdesk; falsifiers KB1–KB4 | draft |
 | [16-multi-entity-rules.md](16-multi-entity-rules.md) | Rules across entity types: `children:` + `context:` — a child's rules see the parent's live state (parent.state, parent.same_org), the kernel does the join; Relay grows the thread + evidence (37,200 situations, round-1 PASS); falsifiers ME-1–ME-6 | draft |
+| [17-typed-blackboxes-monty.md](17-typed-blackboxes-monty.md) | Another approach: humans review data model, transitions, guard rules and black-box contracts (types + LLM-drafted descriptions); LLMs write every body into Monty micro-sandboxes; `boxkit` DSL (decorators + file convention, review lock, spec-hash staleness); Relay rebuilt, UI fully generated; falsifiers BX-1–BX-5 | draft |
 
 Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
 the full pipeline, formal-methods framing (spec beside code);
@@ -30,9 +31,35 @@ rule-based framing (the rule base is the program; note 13);
 reflected UI, plus the honest DEVLOG (note 14); and `examples/helpdesk/` —
 Relay, the guardrail-10 prototype: a hand-written htmx UI, free above a
 verified kernel boundary (note 15), grown to three ruled entity types —
-case, comment, attachment — with context-sensitive child rules (note 16).
+case, comment, attachment — with context-sensitive child rules (note 16);
+and `examples/relay-boxes/` — the same Relay rebuilt as reviewed
+contracts + generated bodies in Monty micro-sandboxes (note 17).
 
 ## Change log
+
+- 2026-10-03 (typed black boxes in Monty — the developer's new direction:
+  "Try another approach. Micro sandboxes with Monty… the developer
+  reviews the data model and state transitions… the types of black
+  boxes… the LLM implements all functionality in typed blackboxes…
+  write a DSL that splits the reviewed and generated code"). Asked and
+  answered up front: domain = Relay (head-to-head with note 15/16),
+  guards = reviewed code, boxes held by types + descriptions + tests
+  with reviewed/generated tests split, DSL = plain decorators +
+  conventions. Built `examples/relay-boxes/`: `boxkit` (stub + spec-hash
+  extraction from `@blackbox` contracts, Monty runner with Protocol/
+  Callable capabilities and two-way conformance, Lifecycle/Policy DSL
+  with mandatory entity tags, `REVIEW.lock`, CLI brief/check/status/
+  digest/approve) and Relay on it (29 rules ported 1:1, 8 boxes incl.
+  the whole htmx UI and inbound-mail parsing). Bodies written by
+  brief-only sub-agents: 6/8 passed reviewed tests in round 1; the 2
+  failures sat exactly on sentences the implementers had flagged as
+  ambiguous → descriptions tightened → exactly those 2 bodies went
+  STALE → fixed in one round. A rule-deletion mutation run found the
+  reviewed policy grid one-directional (24/29 killed; five unwitnessed
+  allows) → P17–P21 → 29/29, now a gate stage. Five preserved bad
+  variants must FAIL at named stages. Lock is a bootstrap stamp — human
+  review of REVIEW.md pending. Note 17 (falsifiers BX-1–BX-5); slides
+  regenerated.
 
 - 2026-08-15 (manual rewritten self-contained — the developer's second
   directive of the day: "don't assume the reader will read anything else

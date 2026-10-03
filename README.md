@@ -53,6 +53,7 @@ they compose, with every example runnable from this repository.
 | `examples/taskboard/` | **End-to-end application**: Flowdeck, a multi-tenant team kanban SaaS on the generic reflected UI — 7 tickets → 150 lines of rules, zero app-specific code; honest developer-experience journal (research note 14) | `./check.sh`, `python app.py` |
 | `examples/helpdesk/` | **The guardrail-10 + multi-entity prototype**: Relay, a customer-support desk whose htmx UI is hand-written and FREE while every interaction is decided inside a verified kernel API; three ruled entity types in one rule base (case, comment, attachment) with context-sensitive child rules — the kernel joins the parent, never the client; boundary held by lint; research notes 15 + 16 | `./check.sh`, `python app.py` |
 | `examples/approvals/` | **The manual's worked example**: Clearance, a miniature expense-claims service built line by line in `docs/manual.md` Part 1 — 10 rules, 3,456 situations, the gate in all three directions, and the round-1 draft the gate must keep failing | `./check.sh` |
+| `examples/relay-boxes/` | **Another approach — reviewed contracts, generated bodies**: Relay rebuilt so humans review only the data model, transitions + guard rules, black-box types/descriptions and effects; LLMs write every body (incl. the whole UI) into Monty micro-sandboxes; `boxkit` DSL with review lock and spec-hash staleness; research note 17 | `./check.sh`, `python -m relay.shell` |
 
 ## Prerequisites
 
@@ -67,5 +68,6 @@ M1 (research), M2 (decisions), M3 (prototypes) and M4 (the closed agent
 loop: repair tracks A/F, optimization track H, proof escalation tracks
 I–M) are done. Current phase: the rule-driven method as the programming
 surface — six services on one generic engine, the kernel boundary, and
-the field manual (`docs/manual.md`). See `research/00-project-brief.md`
+the field manual (`docs/manual.md`); and, as an alternative surface,
+typed black boxes in Monty sandboxes (`examples/relay-boxes/`, note 17). See `research/00-project-brief.md`
 for the living plan and `research/INDEX.md` for the change log.
