@@ -1,35 +1,30 @@
 """boxkit CLI.
 
-    python -m boxkit brief   <app> <box>   what the implementer (an LLM) sees
-    python -m boxkit check   <app>         the gate (exit 1 on any failure)
-    python -m boxkit status  <app>         what changed since the last review
-    python -m boxkit digest  <app>         write <app>/REVIEW.md, the review surface
-    python -m boxkit approve <app> --by N  a HUMAN re-stamps <app>/REVIEW.lock
+    python -m boxkit brief <app> <box>   what the implementer (an LLM) sees
+    python -m boxkit check <app>         the gate (exit 1 on any failure)
 
 <app> is the path of an app package laid out by the convention:
 
-    <app>/model.py machine.py boxes.py shell.py tests/reviewed/  REVIEWED
-    <app>/impl/<box>.py  tests/generated/                        GENERATED
+    <app>/            REVIEWED — model.py machine.py boxes.py shell.py tests/
+    <app>/generated/  GENERATED — <box>.py (runs only inside Monty), tests/
+
+Review happens in the pull request: everything outside generated/ is read
+by a human; generated/ is marked `linguist-generated` (.gitattributes), so
+the PR collapses it and the reviewed files are what is left on screen.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
-import datetime
-import hashlib
 import importlib
-import inspect
-import json
 import pathlib
 import sys
 
 from .contract import Box, boxes_of
 from .machine import Lifecycle, Policy
 
-FRAMEWORK = pathlib.Path(__file__).resolve().parent
-GENERATED_DIRS = ("impl", "tests/generated")
-DERIVED = ("REVIEW.lock", "REVIEW.md")
+GENERATED = "generated"
 IMPL_IMPORTS = {"__future__", "typing", "datetime", "dataclasses", "re", "json",
                 "math", "collections", "itertools", "functools"}
 
@@ -43,7 +38,7 @@ class App:
         sys.path.insert(0, str(self.dir.parent))
         self.boxes_mod = importlib.import_module(f"{self.name}.boxes")
         self.machine_mod = importlib.import_module(f"{self.name}.machine")
-        self.lock_path = self.dir / "REVIEW.lock"
+        self.generated = self.dir / GENERATED
 
     @property
     def boxes(self) -> list[Box]:
@@ -55,52 +50,10 @@ class App:
     def policies(self) -> list[Policy]:
         return [v for v in vars(self.machine_mod).values() if isinstance(v, Policy)]
 
-    def is_generated(self, p: pathlib.Path) -> bool:
-        rel = p.relative_to(self.dir).as_posix()
-        return any(rel.startswith(d + "/") for d in GENERATED_DIRS)
-
-    def reviewed_files(self) -> dict[str, str]:
-        out = {}
-        for p in sorted(self.dir.rglob("*")):
-            if not p.is_file() or "__pycache__" in p.parts or p.name in DERIVED:
-                continue
-            if self.is_generated(p):
-                continue
-            out[p.relative_to(self.dir).as_posix()] = _sha(p)
-        for p in sorted(FRAMEWORK.glob("*.py")):
-            out[f"[boxkit]/{p.name}"] = _sha(p)
-        return out
-
-    def generated_files(self) -> list[pathlib.Path]:
-        return sorted(p for d in GENERATED_DIRS for p in (self.dir / d).rglob("*.py")
-                      if "__pycache__" not in p.parts)
-
-    def lock(self) -> dict:
-        return json.loads(self.lock_path.read_text()) if self.lock_path.exists() else {}
-
-
-def _sha(p: pathlib.Path) -> str:
-    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
-
-
-# -- status: reviewed changes since the lock ---------------------------------------
-
-def review_drift(app: App) -> list[str]:
-    locked = app.lock().get("files", {})
-    now = app.reviewed_files()
-    out = []
-    for f in sorted(set(locked) | set(now)):
-        if f not in now:
-            out.append(f"removed   {f}")
-        elif f not in locked:
-            out.append(f"new       {f}")
-        elif locked[f] != now[f]:
-            out.append(f"changed   {f}")
-    locked_boxes = app.lock().get("boxes", {})
-    for b in app.boxes:
-        if locked_boxes.get(b.name) != b.spec_hash:
-            out.append(f"contract  {b.name} (spec {locked_boxes.get(b.name)} -> {b.spec_hash})")
-    return out
+    def reviewed_sources(self) -> list[pathlib.Path]:
+        return sorted(p for p in self.dir.rglob("*.py")
+                      if "__pycache__" not in p.parts
+                      and self.generated not in p.parents)
 
 
 # -- lints ---------------------------------------------------------------------------
@@ -131,24 +84,27 @@ def lint_contracts(app: App) -> list[str]:
 
 def lint_boundary(app: App) -> list[str]:
     """Generated code is reachable only through the sandbox: no reviewed
-    module imports impl/, and impl/ files are self-contained Monty modules."""
+    module imports generated/, and the box bodies in generated/ are
+    self-contained Monty modules."""
     out = []
     names = {b.name for b in app.boxes}
-    for rel in app.reviewed_files():
-        if rel.startswith("[boxkit]") or not rel.endswith(".py"):
-            continue
-        tree = ast.parse((app.dir / rel).read_text())
+    for path in app.reviewed_sources():
+        rel = path.relative_to(app.dir).as_posix()
+        tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             mods = []
             if isinstance(node, ast.Import):
                 mods = [a.name for a in node.names]
             elif isinstance(node, ast.ImportFrom):
                 mods = [node.module or ""] + [a.name for a in node.names]
-            if any(m == "impl" or ".impl" in m or m.startswith("impl.") for m in mods):
+            if any(m == GENERATED or f".{GENERATED}" in m or m.startswith(f"{GENERATED}.")
+                   for m in mods):
                 out.append(f"{rel}:{node.lineno}: imports generated code directly "
                            f"(boxes run only in the sandbox)")
-    for p in sorted((app.dir / "impl").glob("*.py")):
+    for p in sorted(app.generated.glob("*.py")):
         rel = p.relative_to(app.dir).as_posix()
+        if p.name == "__init__.py":
+            continue
         if p.stem not in names:
             out.append(f"{rel}: implements no declared box (orphan)")
             continue
@@ -168,7 +124,7 @@ def lint_boundary(app: App) -> list[str]:
                 continue  # a docstring
             else:
                 out.append(f"{rel}:{node.lineno}: top-level statement "
-                           f"({type(node).__name__}) — impl modules only define")
+                           f"({type(node).__name__}) — box modules only define")
                 continue
             if bad:
                 out.append(f"{rel}:{node.lineno}: imports {bad} — not in the sandbox "
@@ -194,11 +150,7 @@ def check(app: App) -> int:
         else:
             print(f"  ok   {ok}")
 
-    drift = review_drift(app)
-    stage("1. review lock: reviewed code is what a human approved", drift,
-          f"{len(app.reviewed_files())} reviewed files, {len(app.boxes)} contracts "
-          f"match REVIEW.lock (approved by {app.lock().get('approved_by', '?')})")
-    stage("2. contracts carry no logic", lint_contracts(app),
+    stage("1. contracts carry no logic", lint_contracts(app),
           f"{len(app.boxes)} body-less @blackbox declarations with descriptions")
     lc = [p for l in app.lifecycles() for p in l.problems()]
     entities = {l.entity for l in app.lifecycles()}
@@ -206,18 +158,19 @@ def check(app: App) -> int:
         for r in pol.rules:
             lc += [f"rule {r.id} governs undeclared entity {e!r}"
                    for e in r.entities if e not in entities]
-    stage("3. lifecycles and rules are well-formed", lc,
+    stage("2. lifecycles and rules are well-formed", lc,
           ", ".join(f"{l.entity}: {len(l.states)} states/{len(l.transitions)} transitions"
                     for l in app.lifecycles())
           + f"; {sum(len(p.rules) for p in app.policies())} rules")
-    stage("4. boundary: generated code is reachable only through the sandbox",
-          lint_boundary(app), "no reviewed module imports impl/; impl/ is self-contained")
+    stage("3. boundary: generated code is reachable only through the sandbox",
+          lint_boundary(app), f"no reviewed module imports {GENERATED}/; "
+                              f"box bodies are self-contained")
 
     problems = []
     for b in app.boxes:
         spec = b.impl_spec()
         if spec is None:
-            problems.append(f"{b.name}: MISSING impl/{b.name}.py")
+            problems.append(f"{b.name}: MISSING {GENERATED}/{b.name}.py")
             continue
         if spec != b.spec_hash:
             problems.append(f"{b.name}: STALE — written against spec {spec or '?'}, "
@@ -226,7 +179,7 @@ def check(app: App) -> int:
         if diag:
             problems.append(f"{b.name}: TYPE ERROR against its reviewed stub\n      "
                             + diag.replace("\n", "\n      "))
-    stage("5. every box has a fresh, well-typed implementation (ty inside Monty)",
+    stage("4. every box has a fresh, well-typed implementation (ty inside Monty)",
           problems, f"{len(app.boxes)} implementations type-check against their stubs")
 
     print(f"\n{'GATE FAIL' if failures else 'GATE PASS'} "
@@ -242,7 +195,7 @@ def brief(app: App, name: str) -> str:
         raise SystemExit(f"no box {name!r}; boxes: {[b.name for b in app.boxes]}")
     return f"""# Implement black box `{box.name}`
 
-Write `{app.name}/impl/{box.name}.py`. Its FIRST line must be exactly:
+Write `{app.name}/{GENERATED}/{box.name}.py`. Its FIRST line must be exactly:
 
 {box.header}
 
@@ -268,104 +221,18 @@ Rules of the sandbox (Monty — a subset of Python):
 """
 
 
-# -- digest: the review surface ---------------------------------------------------------------
-
-def digest(app: App) -> str:
-    out = [f"# {app.name} — review surface\n",
-           "Generated by `python -m boxkit digest`. Everything below is REVIEWED "
-           "code, summarised; generated code (impl/, tests/generated/) is not "
-           "listed because no human reviews it — the gate does.\n"]
-    model = importlib.import_module(f"{app.name}.model")
-    import dataclasses as dc
-    import typing
-    out.append("## 1. Data model (`model.py`)\n")
-    for name, obj in vars(model).items():
-        if isinstance(obj, type) and dc.is_dataclass(obj) and obj.__module__ == model.__name__:
-            fields = ", ".join(f"`{f.name}: {f.type}`" for f in dc.fields(obj))
-            out.append(f"- **{name}** — {fields}")
-    for name, obj in vars(model).items():
-        if typing.get_origin(obj) is typing.Literal:
-            out.append(f"- **{name}** ∈ {{{', '.join(map(str, typing.get_args(obj)))}}}")
-    out.append("\n## 2. State transitions (`machine.py`)\n")
-    for lc in app.lifecycles():
-        out.append(f"### {lc.entity}\n\n```mermaid\n{lc.mermaid()}\n```\n")
-        out.append("| action | from | to |\n|---|---|---|")
-        out += [f"| {t.action} | {t.source} | {t.target} |" for t in lc.transitions]
-        out.append("")
-    out.append("## 3. Guard rules (`machine.py`) — deny wins, silence denies\n")
-    out.append("| rule | effect | entities | description | when |\n|---|---|---|---|---|")
-    for pol in app.policies():
-        for r in pol.rules:
-            src = inspect.getsource(r.when).strip().splitlines()[-1].strip()
-            src = src.removeprefix("return ").replace("|", "\\|")
-            out.append(f"| `{r.id}` | {r.effect} | {', '.join(r.entities)} | "
-                       f"{r.description} | `{src}` |")
-    out.append("\n## 4. Black boxes (`boxes.py`)\n")
-    for b in app.boxes:
-        status = "fresh" if b.impl_spec() == b.spec_hash else (
-            "MISSING" if b.impl_spec() is None else "STALE")
-        out.append(f"### `{b.name}` — spec `{b.spec_hash}` ({status})\n")
-        out.append(f"```python\n{b.signature_text}\n```\n")
-        out.append(b.description + "\n")
-    out.append("## 5. Reviewed tests\n")
-    for p in sorted((app.dir / "tests" / "reviewed").glob("test_*.py")):
-        tree = ast.parse(p.read_text())
-        tests = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)
-                 and n.name.startswith("test_")]
-        out.append(f"- `{p.name}`: " + ", ".join(f"`{t}`" for t in tests))
-    return "\n".join(out) + "\n"
-
-
-# -- approve: a human re-stamps the lock --------------------------------------------------------
-
-def approve(app: App, by: str) -> None:
-    drift = review_drift(app)
-    if not drift and app.lock_path.exists():
-        print("nothing to approve: reviewed code matches REVIEW.lock")
-        return
-    for d in drift:
-        print(f"  approving {d}")
-    app.lock_path.write_text(json.dumps({
-        "approved_by": by,
-        "approved_at": datetime.date.today().isoformat(),
-        "files": app.reviewed_files(),
-        "boxes": {b.name: b.spec_hash for b in app.boxes},
-    }, indent=2) + "\n")
-    (app.dir / "REVIEW.md").write_text(digest(app))
-    print(f"REVIEW.lock re-stamped by {by}; REVIEW.md regenerated")
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(prog="boxkit")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for c in ("check", "status", "digest"):
-        sub.add_parser(c).add_argument("app")
+    sub.add_parser("check").add_argument("app")
     b = sub.add_parser("brief")
     b.add_argument("app")
     b.add_argument("box")
-    a = sub.add_parser("approve")
-    a.add_argument("app")
-    a.add_argument("--by", required=True, help="the human reviewer")
     args = ap.parse_args()
     app = App(args.app)
     if args.cmd == "check":
         return check(app)
-    if args.cmd == "status":
-        drift = review_drift(app)
-        print("\n".join(drift) or "reviewed code matches REVIEW.lock")
-        for bx in app.boxes:
-            s = bx.impl_spec()
-            if s != bx.spec_hash:
-                print(f"impl      {bx.name}: {'MISSING' if s is None else 'STALE'}")
-        return 0
-    if args.cmd == "digest":
-        (app.dir / "REVIEW.md").write_text(digest(app))
-        print(f"wrote {app.dir / 'REVIEW.md'}")
-        return 0
-    if args.cmd == "brief":
-        print(brief(app, args.box))
-        return 0
-    approve(app, args.by)
+    print(brief(app, args.box))
     return 0
 
 

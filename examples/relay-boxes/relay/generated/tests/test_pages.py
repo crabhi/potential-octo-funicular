@@ -14,7 +14,7 @@ import pytest
 import relay.boxes as B
 from relay.machine import Desk
 from relay.shell import PEOPLE, TODAY, seed, esc as shell_esc, org_of  # noqa: F401
-from relay.tests.generated.htmlkit import (
+from relay.generated.tests.htmlkit import (
     HOSTILE, HOSTILE_ESC, FakeDesk, RecEsc, aff, esc, has_date, mk_case, parse, posts, posts_to, text_of,
 )
 
@@ -883,7 +883,7 @@ class TestNewCasePage:
         assert chosen == ["med"]
 
     def test_default_submission_has_med_and_empty_sla(self):
-        from relay.tests.generated.htmlkit import controls
+        from relay.generated.tests.htmlkit import controls
         _, f = self.form()
         c = controls(f)
         assert c["severity"] == "med"

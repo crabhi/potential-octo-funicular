@@ -2,9 +2,10 @@
 
 The DSL is plain Python plus a file convention (see README):
 
-    REVIEWED  <app>/model.py, machine.py, boxes.py, shell.py, tests/reviewed/
-              — hash-locked in <app>/REVIEW.lock
-    GENERATED <app>/impl/<box>.py (runs only inside Monty), tests/generated/
+    REVIEWED  everything in <app>/ outside generated/ — model.py, machine.py,
+              boxes.py, shell.py, tests/
+    GENERATED <app>/generated/ — <box>.py (runs only inside Monty), tests/
+              (marked linguist-generated, so pull requests collapse it)
 
 Decorators and helpers:
     @blackbox            a typed, body-less signature + reviewed description

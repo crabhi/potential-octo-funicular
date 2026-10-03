@@ -128,7 +128,7 @@ class Box:
         self.module = fn.__module__
         self.description = inspect.cleandoc(fn.__doc__ or "")
         self.package_dir = pathlib.Path(sys.modules[self.module].__file__).parent
-        self.impl_path = self.package_dir / "impl" / f"{self.name}.py"
+        self.impl_path = self.package_dir / "generated" / f"{self.name}.py"
 
     # -- the reviewed declaration ------------------------------------------
     @functools.cached_property
@@ -220,7 +220,7 @@ class Box:
 def blackbox(fn: Callable[..., Any]) -> Box:
     """Declare a black box: a reviewed, typed, body-less signature whose
     docstring is the reviewed description. The body is generated, lives in
-    `impl/<name>.py`, and only ever runs inside the Monty sandbox."""
+    `<app>/generated/<name>.py`, and only ever runs inside the Monty sandbox."""
     return Box(fn)
 
 

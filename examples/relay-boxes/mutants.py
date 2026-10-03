@@ -29,7 +29,7 @@ def main() -> int:
         assert mutant != SRC, rid
         (d / "relay" / "machine.py").write_text(mutant)
         r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x",
-                            "relay/tests/reviewed/test_policy.py"],
+                            "relay/tests/test_policy.py"],
                            cwd=d, capture_output=True, text=True)
         shutil.rmtree(d)
         failed = next((ln.split("::")[-1].split(" ")[0] for ln in r.stdout.splitlines()

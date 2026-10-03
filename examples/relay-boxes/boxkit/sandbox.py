@@ -206,7 +206,7 @@ def run_box(box: Any, args: tuple, kwargs: dict) -> Any:
                                  f"(generate one: python -m boxkit brief … {box.name})")
     code = box.impl_source() + f"\n\n{box.name}({', '.join(call_args)})\n"
     try:
-        with pool().checkout(limits=LIMITS, script_name=f"impl/{box.name}.py") as s:
+        with pool().checkout(limits=LIMITS, script_name=f"generated/{box.name}.py") as s:
             result = s.feed_run(code, inputs=inputs, external_lookup=external)
     except ContractViolation:
         raise
@@ -225,7 +225,7 @@ def typecheck(box: Any) -> str | None:
     try:
         with pool().checkout(type_check=True, type_check_stubs=box.stub,
                              type_check_format="concise", limits=LIMITS,
-                             script_name=f"impl/{box.name}.py") as s:
+                             script_name=f"generated/{box.name}.py") as s:
             s.feed_run(code)
     except MontyTypingError as e:
         return e.display().strip()

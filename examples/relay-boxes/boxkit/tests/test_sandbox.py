@@ -82,7 +82,7 @@ class HostStore:
 def app(tmp_path):
     name = f"toy_{uuid.uuid4().hex[:8]}"
     pkg = tmp_path / name
-    (pkg / "impl").mkdir(parents=True)
+    (pkg / "generated").mkdir(parents=True)
     (pkg / "__init__.py").write_text("")
     (pkg / "model.py").write_text(MODEL)
     (pkg / "boxes.py").write_text(BOXES)
@@ -91,7 +91,7 @@ def app(tmp_path):
     model = importlib.import_module(f"{name}.model")
 
     def impl(box, body):
-        (pkg / "impl" / f"{box.name}.py").write_text(
+        (pkg / "generated" / f"{box.name}.py").write_text(
             box.header + "\n" + textwrap.dedent(body))
     yield boxes, model, impl
     sys.path.remove(str(tmp_path))

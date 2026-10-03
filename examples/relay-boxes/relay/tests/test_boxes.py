@@ -5,7 +5,7 @@ the behaviour the descriptions promise (routing table, queue semantics,
 mail interpretation) and the properties no description can be trusted
 to deliver alone — escaping of hostile text on every page for every
 persona, and every link a page renders being a route the router knows.
-Generated tests (tests/generated/) may add to these; they never replace
+Generated tests (generated/tests/) may add to these; they never replace
 them.
 """
 

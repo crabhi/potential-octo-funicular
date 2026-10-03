@@ -3,7 +3,7 @@
 Everything in this file is reviewed by a human: the types that flow in
 and out of black boxes, the capabilities boxes receive, and each box's
 signature and description (the docstring — drafted by an LLM, approved
-by a human). The bodies are NOT here: each lives in `impl/<name>.py`, is
+by a human). The bodies are NOT here: each lives in `generated/<name>.py`, is
 generated, runs only inside a Monty sandbox, and is held to this file by
 type checking (ty, against a stub derived from this file), runtime
 conformance checks on every value crossing the boundary, and the tests.

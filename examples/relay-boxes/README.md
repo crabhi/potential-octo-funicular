@@ -6,15 +6,19 @@ same product: **Relay**, the customer-support helpdesk of
 `../helpdesk/` (tickets HD-1…HD-9 in `../helpdesk/TICKETS.md`).
 
 Instead of a rule base that *is* the program, the program is split by
-**who reviews it**:
+**who reviews it** — and the split is a folder:
 
-| Humans review (hash-locked)            | An LLM generates (never reviewed line by line) |
-|----------------------------------------|-----------------------------------------------|
-| the **data model** — `relay/model.py` | every black-box **body** — `relay/impl/<box>.py`, run only inside a [Monty](https://github.com/pydantic/monty) micro-sandbox |
-| the **state transitions + guard rules + kernel** — `relay/machine.py` | **generated tests** — `relay/tests/generated/` |
-| the **types of the black boxes**, their capabilities, and each box's **description** (LLM-drafted, human-approved) — `relay/boxes.py` | |
-| the **outer code** that turns box outputs into effects — `relay/shell.py` | |
-| **reviewed tests** — `relay/tests/reviewed/` | |
+```
+relay/                     REVIEWED — a human reads every line of a change here
+  model.py                 the data model (frozen dataclasses, Literal vocabularies)
+  machine.py               state transitions + guard rules + the kernel
+  boxes.py                 black-box types, capabilities, signatures + descriptions
+  shell.py                 HTTP, cookies, mail webhook: where box outputs become effects
+  tests/                   reviewed tests
+  generated/               GENERATED — nobody reads it; the gate holds it
+    route.py, case_page.py, …   one body per black box, run ONLY inside Monty
+    tests/                 generated tests
+```
 
 The UI — routing, every view, every HTML template, the stylesheet — is
 generated. So is the product logic that is not policy (queue sorting,
@@ -22,19 +26,30 @@ interpreting inbound email). None of it can write state, read a file,
 reach the network, call a kernel method its contract does not list, or
 return a value its reviewed type does not admit.
 
+## Reviewing a change
+
+Review happens in the pull request. `relay/generated/` is marked
+`linguist-generated` in the repository's `.gitattributes`, so GitHub
+collapses those files in the diff; **what stays expanded is exactly the
+code a human reviews.** A PR that touches only `generated/` changed no
+contract, no rule, no transition — the gate already decided it. A PR that
+touches `boxes.py` changed a contract: read the types and the
+description; the gate will have marked the affected bodies STALE until
+they are regenerated against it.
+
 ```
-  ┌──────────── REVIEWED ────────────┐        ┌──────── GENERATED (Monty) ───────┐
-  │ shell.py   HTTP · cookies · mail │──args─▶│ impl/route.py      req → command  │
-  │            applies commands ─────┼─┐      │ impl/case_page.py  → HTML         │
-  │ boxes.py   types · Protocols ·   │ │      │ impl/intake_email.py → intent     │
-  │            signatures + descr.   │ │◀─ret─│ …8 boxes, each ONLY sees its stub │
-  │ machine.py lifecycles · rules ·  │ │      └──────────────┬───────────────────┘
-  │            Desk (the kernel)  ◀──┼─┘   DeskReader (read-only, per actor,     │
-  │ model.py   frozen dataclasses    │◀──── exactly the Protocol's methods) ─────┘
+  ┌──────────── relay/ (REVIEWED) ───┐        ┌──── relay/generated/ (Monty) ─────┐
+  │ shell.py   HTTP · cookies · mail │──args─▶│ route.py          req → command   │
+  │            applies commands ─────┼─┐      │ case_page.py      → HTML          │
+  │ boxes.py   types · Protocols ·   │ │      │ intake_email.py   → intent        │
+  │            signatures + descr.   │ │◀─ret─│ …8 boxes, each sees ONLY its stub │
+  │ machine.py lifecycles · rules ·  │ │      └──────────────┬────────────────────┘
+  │            Desk (the kernel)  ◀──┼─┘   DeskReader (read-only, per actor,      │
+  │ model.py   frozen dataclasses    │◀──── exactly the Protocol's methods) ──────┘
   └──────────────────────────────────┘
 ```
 
-## The DSL: plain Python + one file convention
+## The DSL: plain Python + one folder convention
 
 ```python
 # relay/boxes.py (REVIEWED)
@@ -52,8 +67,8 @@ def sort_into_queues(cases: list[Case], today: date) -> list[Queue]:
 ```
 
 ```python
-# relay/impl/sort_into_queues.py (GENERATED — first line pins the contract)
-# boxkit: generated implementation of `sort_into_queues` against spec 1dfd4e1e…
+# relay/generated/sort_into_queues.py (GENERATED — first line pins the contract)
+# boxkit: generated implementation of `sort_into_queues` against spec 5e72a58e…
 def sort_into_queues(cases: list[Case], today: date) -> list[Queue]:
     ...
 ```
@@ -75,7 +90,7 @@ What `boxkit` derives mechanically from a `@blackbox` declaration:
   a `BoxkitContract` protocol for its signature. The implementer is shown
   only this (`python -m boxkit brief relay <box>`); the body is
   type-checked against it by [ty](https://docs.astral.sh/ty/) *inside Monty*;
-* **the spec hash** — over stub + description. A generated file records the
+* **the spec hash** — over stub + description. A generated body records the
   hash it was written against; change a reviewed type the box uses, or its
   description, and the body is **STALE** until regenerated (and only that
   box — unrelated contracts keep their hash);
@@ -90,49 +105,38 @@ What `boxkit` derives mechanically from a `@blackbox` declaration:
 ## The gate
 
 ```bash
-./check.sh       # everything, both directions (≈1 min; creates .venv)
-python -m boxkit check relay          # the gate alone
+./check.sh                              # everything, both directions (≈1 min; creates .venv)
+python -m boxkit check relay            # the gate alone
 python -m boxkit brief relay case_page  # what the implementer sees
-python -m boxkit status relay         # what changed since the last review
-python -m boxkit approve relay --by "<human>"   # re-stamp REVIEW.lock (humans only)
-python -m relay.shell                 # serve http://127.0.0.1:8811/
+python -m relay.shell                   # serve http://127.0.0.1:8811/
 ```
 
-`boxkit check` stages: (1) every reviewed file and every contract matches
-`REVIEW.lock` — an agent edit to `machine.py` fails the gate until a human
-re-approves; (2) contracts carry no logic; (3) lifecycles are well-formed
-(reachability, determinism, declared terminals) and every rule names a
-declared entity; (4) boundary lint — nothing reviewed imports `impl/`,
-`impl/` files are self-contained sandbox modules on an import allowlist;
-(5) every box has an implementation that is present, fresh (spec hash) and
-type-correct against its stub.
+`boxkit check` stages: (1) contracts carry no logic; (2) lifecycles are
+well-formed (reachability, determinism, declared terminals) and every
+rule names a declared entity; (3) boundary lint — nothing reviewed imports
+`generated/`, and the bodies there are self-contained sandbox modules on
+an import allowlist; (4) every box has a body that is present, fresh
+(spec hash) and type-correct against its stub.
 
-`check.sh` adds the framework's hostile-body tests, the reviewed tests
-(policy exhausted over 285,120 situations — the 29 safety properties and
-16 witnesses of the rule-engine Relay; box behaviour; XSS on every page for
-every persona; every rendered link must be a route the router knows; the
-app over HTTP with forged requests), the generated tests, and **the other
-direction** — five preserved bad variants that must each FAIL at the stage
-named for them (mistyped body, unescaped page, unapproved kernel edit,
-kernel without the org wall, description change leaving the body STALE).
+`check.sh` adds the framework's hostile-body tests, a check that
+`generated/` is marked collapsed for PRs, the reviewed tests (policy
+exhausted over 285,120 situations — the 29 safety properties and 21
+witnesses; box behaviour; XSS on every page for every persona; every
+rendered link must be a route the router knows; the app over HTTP with
+forged requests), the generated tests, and **the other direction** — five
+preserved bad variants that must each FAIL at the stage named for them
+(mistyped body, unescaped page, reviewed code importing generated code,
+kernel without the org wall, description change leaving the body STALE)
+— and a mutation run: deleting any one guard rule must break a reviewed
+test.
 
 ## Who plays "the LLM"?
 
 Nobody in particular — that is the point of the split. Any coding agent
 (Claude Code, a headless `claude -p`, a cheaper model) gets the brief,
-writes `impl/<box>.py`, and is held to the gate. For this prototype the
-bodies were written by sub-agents that were **forbidden to read anything
-but their brief** — so the descriptions had to carry the whole spec (see
-`DEVLOG.md` for how that went: two descriptions were ambiguous, both
+writes `relay/generated/<box>.py`, and is held to the gate. For this
+prototype the bodies were written by sub-agents that were **forbidden to
+read anything but their brief** — so the descriptions had to carry the
+whole spec (see `DEVLOG.md`: two descriptions were ambiguous, both
 ambiguities were caught by reviewed tests, both were fixed in the
 contract, and the STALE mechanism forced exactly those two regenerations).
-
-## Mechanical enforcement outside the repo
-
-`REVIEW.lock` proves reviewed code did not change *without* a lock update;
-a lock update is one file in the PR diff. In a real setup, protect
-`REVIEW.lock` and the reviewed paths with CODEOWNERS / branch protection
-(humans approve), and deny agent edits to them in the agent harness
-(e.g. Claude Code `permissions.deny` for `Edit(relay/model.py)` etc.).
-The current lock is a **bootstrap stamp** (`approved_by: claude-bootstrap
-(NOT yet human-reviewed)`) — the human review of `REVIEW.md` is pending.

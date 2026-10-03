@@ -12,7 +12,7 @@ read-only `DeskReader`. Inbound mail flows the same way: `intake_email`
 (box) interprets, `receive_mail` (here) applies as the robot.
 
 No HTML is written here and no product decision is made here: what the
-desk looks like is generated (impl/), who may do what is machine.py.
+desk looks like is generated (generated/), who may do what is machine.py.
 """
 
 from __future__ import annotations

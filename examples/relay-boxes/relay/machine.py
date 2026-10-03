@@ -161,7 +161,7 @@ def _(s: Situation) -> bool:
 
 # ---- allows (silence denies: there are no "customers never triage",
 # "staff never reopen", "the robot does nothing else" denies — the allows
-# are tight, and tests/reviewed/test_policy.py proves each containment
+# are tight, and tests/test_policy.py proves each containment
 # over the whole situation grid) ----
 
 @POLICY.allow("customer_opens", "HD-2: customers open cases (into their own org).",
