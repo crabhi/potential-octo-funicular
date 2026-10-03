@@ -130,3 +130,52 @@ tests are fixed points.
 gate PASS, 44 reviewed + 300 generated tests, 5/5 bad variants caught at
 their named stage, 29/29 rule-deletion mutants killed, boot + seed (9
 cases, two via the mail robot).
+
+## Revision — no review lock; business-area modules; src/test mirror (developer)
+
+Three developer directives, applied in order:
+
+1. **"Simplify. Get rid of the review lock."** The PR diff is the review
+   surface: whoever reviews sees which reviewed files changed. Removed
+   `REVIEW.lock`, `REVIEW.md` and `boxkit approve/status/digest`; the lock
+   gate stage is gone. The preserved "unapproved kernel edit" variant lost
+   its meaning and was replaced by one that still bites: reviewed code
+   importing generated code (boundary lint). The per-box spec hash stays —
+   it is not a review lock but how a body knows its contract moved.
+2. **"Group generated code in a separate folder"**, made user-friendly in
+   PRs: `.gitattributes` marks the generated folders `linguist-generated`,
+   so GitHub collapses them; check.sh verifies the attribute.
+3. **"Construct modules by business logic"; "generated under src and test;
+   match module names"** (`relay.cases.model` ↔ `generated.relay.cases.model`).
+   The flat model/machine/boxes/shell split (grouped by kind of code) became
+   `people`, `policy`, `kernel`, `cases/`, `thread/`, `mail/`, `web/` — each
+   business area holds its model, lifecycle, rules, contracts and effects.
+   A uv project now (`uv_build`, `module-name = ["relay", "generated",
+   "boxkit"]` — verified that one wheel ships all three; hatchling's
+   `force-include` was the alternative before generated moved under src/).
+
+Mechanics worth recording:
+- Reviewed definitions were moved **verbatim** (extracted by AST, not
+  retyped), and rules kept their per-entity registration order (deny
+  order names the refusal).
+- The spec hash was redefined over the TEXT of the closure types +
+  signature + description, not the stub file (whose import lines and
+  ordering depend on where things live). Verified: the new-formula hashes
+  computed on the pre-move code equal those on the post-move code for all
+  8 boxes — so the move provably changed no contract, and the bodies were
+  re-stamped, not regenerated. Future moves no longer stale anything.
+- Five per-box body files became five per-module mirrors; the three case
+  pages had byte-identical `_toast` helpers (independently written per
+  box) — merged once. Grouping by module gives generated code a natural
+  place for shared helpers.
+- Stubs are now dependency-ordered (a type alias after the classes it
+  names), needed once types come from several modules.
+- Generated tests were moved by a mechanical import rewrite (their helper
+  module inlined, since `test/generated` must not shadow the `generated`
+  package); reviewed tests were split by business area with shared
+  fixtures in `test/relay/conftest.py`.
+
+Result: check.sh green — 10 framework + 44 reviewed + 300 generated tests,
+5/5 variants caught, 29/29 mutants killed, boot. Reviewed: 1,457 lines
+(people 20, policy 75, kernel 330, cases 250, thread 153, mail 119, web
+495) + 642 test lines; generated: 876 + 1,753 test lines.

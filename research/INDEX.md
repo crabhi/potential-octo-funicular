@@ -21,7 +21,7 @@ Keep this file current: one line per note, newest changes noted in the log.
 | [14-developer-experience.md](14-developer-experience.md) | DX study: Flowdeck (multi-tenant kanban SaaS) built end to end as rules with a generic web UI; 4 rounds × 0.18 s, 2 real authz holes caught, frictions enumerated; falsifiers DX1–DX3 | draft |
 | [15-kernel-boundary-free-ui.md](15-kernel-boundary-free-ui.md) | Guardrail 10: the verified boundary is a function-level kernel API; the UI (htmx) is agent-authored and free; boundary lint, two-phase edits, Relay helpdesk; falsifiers KB1–KB4 | draft |
 | [16-multi-entity-rules.md](16-multi-entity-rules.md) | Rules across entity types: `children:` + `context:` — a child's rules see the parent's live state (parent.state, parent.same_org), the kernel does the join; Relay grows the thread + evidence (37,200 situations, round-1 PASS); falsifiers ME-1–ME-6 | draft |
-| [17-typed-blackboxes-monty.md](17-typed-blackboxes-monty.md) | Another approach: humans review data model, transitions, guard rules and black-box contracts (types + LLM-drafted descriptions); LLMs write every body into Monty micro-sandboxes; `boxkit` DSL (decorators + file convention, review lock, spec-hash staleness); Relay rebuilt, UI fully generated; falsifiers BX-1–BX-5 | draft |
+| [17-typed-blackboxes-monty.md](17-typed-blackboxes-monty.md) | Another approach: humans review data model, transitions, guard rules and black-box contracts (types + LLM-drafted descriptions); LLMs write every body into Monty micro-sandboxes; `boxkit` DSL (decorators + a src/generated mirror convention, spec-hash staleness, PR diff as the review surface); Relay rebuilt by business area, UI fully generated; falsifiers BX-1–BX-5 | draft |
 
 Worked examples live under `examples/`: `examples/cms/` — a CMS guarded by
 the full pipeline, formal-methods framing (spec beside code);
@@ -37,6 +37,20 @@ contracts + generated bodies in Monty micro-sandboxes (note 17).
 
 ## Change log
 
+- 2026-10-03 (relay-boxes simplified and restructured — three developer
+  directives): (1) the review lock is gone — the PR diff is the review
+  surface; generated folders are `linguist-generated` so GitHub collapses
+  them and the expanded diff is exactly the reviewed code; (2) modules by
+  business logic instead of by kind of code: `relay.{people,policy,kernel}`
+  + `cases/ thread/ mail/ web/`, each area holding its model, lifecycle,
+  rules, contracts and effects; (3) a uv src layout where generated code
+  mirrors module names — `relay.cases.pages` ↔ `generated.relay.cases.pages`
+  under `src/generated/`, tests under `test/relay/` ↔ `test/generated/relay/`;
+  one `uv_build` wheel ships relay + generated + boxkit. The spec hash was
+  made location-independent and verified equal before/after the move for
+  all 8 boxes, so bodies were re-stamped, not regenerated. check.sh green
+  (10 + 44 + 300 tests, 5/5 variants, 29/29 mutants). Note 17 revised.
+
 - 2026-10-03 (typed black boxes in Monty — the developer's new direction:
   "Try another approach. Micro sandboxes with Monty… the developer
   reviews the data model and state transitions… the types of black
@@ -49,7 +63,7 @@ contracts + generated bodies in Monty micro-sandboxes (note 17).
   extraction from `@blackbox` contracts, Monty runner with Protocol/
   Callable capabilities and two-way conformance, Lifecycle/Policy DSL
   with mandatory entity tags, `REVIEW.lock`, CLI brief/check/status/
-  digest/approve) and Relay on it (29 rules ported 1:1, 8 boxes incl.
+  digest/approve — since removed, see the next entry) and Relay on it (29 rules ported 1:1, 8 boxes incl.
   the whole htmx UI and inbound-mail parsing). Bodies written by
   brief-only sub-agents: 6/8 passed reviewed tests in round 1; the 2
   failures sat exactly on sentences the implementers had flagged as
