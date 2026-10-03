@@ -32,7 +32,7 @@ expect_fail() {  # <label> <command...> — run in a scratch copy of the app
   if "$@" >/tmp/relay-boxes-variant.log 2>&1; then
     echo "  ERROR: $label PASSED — the gate is not holding"; tail -20 /tmp/relay-boxes-variant.log; exit 1
   fi
-  echo "  good: $label is caught — $(grep -m1 -E 'FAIL|failed|Error' /tmp/relay-boxes-variant.log | head -c 150)"
+  echo "  good: $label is caught — $(grep -m1 -E '^FAILED|  FAIL ' /tmp/relay-boxes-variant.log | head -c 150)"
 }
 scratch() {  # fresh copy of the app + framework in a temp dir; prints its path
   local d; d=$(mktemp -d)

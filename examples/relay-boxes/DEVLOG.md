@@ -107,3 +107,26 @@ Reviewed: model 115 + machine 544 + boxes 351 + shell 321 = 1,331 lines,
 plus 566 lines of reviewed tests. Generated: 910 lines (8 boxes). The
 rule-engine Relay: 278 lines of rules + 443 of gate YAML reviewed per app,
 764 lines of free UI, and an engine reviewed once for all apps.
+
+## Generated tests
+
+One sub-agent, briefs only (no impl/, no reviewed tests), wrote 300
+tests in `tests/generated/` (route 107, intake_email 56, queues 14, pages
+123 + a small HTML/FakeDesk helper). All green against the bodies; it
+found no implementation bug, and corrected one over-read of its own
+(exact queue-cell text). Swapping in the preserved unescaped `case_page`
+fails 27 of them, including an escape-specific one — so the generated
+suite independently re-derives the XSS property the reviewed suite pins.
+Caveat it flagged itself: some tests pin markup beyond the literal
+description (persona option values, `<details>` for locked actions, six
+`<th>` in order). Generated tests are free to over-pin — but then a
+faithful regeneration of a box can fail them. Policy taken: when a box is
+regenerated, its generated tests are regenerated with it; only reviewed
+tests are fixed points.
+
+## Full run
+
+`./check.sh` from a fresh venv: 72 s, ALL CHECKS PASSED — 10 framework,
+gate PASS, 44 reviewed + 300 generated tests, 5/5 bad variants caught at
+their named stage, 29/29 rule-deletion mutants killed, boot + seed (9
+cases, two via the mail robot).

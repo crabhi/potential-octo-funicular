@@ -88,7 +88,9 @@ direction (dataclasses do not validate their own fields).
   lint, fresh+typed bodies) → reviewed then generated tests → five
   preserved bad variants that must FAIL at a named stage → rule-deletion
   mutation run (every guard rule's deletion must break a reviewed test)
-  → boot.
+  → boot. Full run: 72 s; 10 framework + 44 reviewed + 300 generated
+  tests (the latter written by a brief-only agent; they independently
+  fail the unescaped variant too), 5/5 variants caught, 29/29 mutants.
 
 ## Findings
 

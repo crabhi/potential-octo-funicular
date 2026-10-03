@@ -351,7 +351,7 @@ code_block(40, H - 96, 470, [
 ], size=8.3, dark=True)
 panel(530, 222, 390, 234)
 c.setFont(FB, 11.5); c.setFillColor(ACCENT_D)
-c.drawString(544, 434, "check.sh, stage by stage")
+c.drawString(544, 434, "check.sh, stage by stage (72 s, ALL PASS)")
 bullets(544, 410, [
     "Framework: 10 hostile bodies — file/env/socket access, out-of-contract types, host mutation, non-protocol methods, ill-typed capability calls, runaway CPU/memory — all caught.",
     "The gate above.",
