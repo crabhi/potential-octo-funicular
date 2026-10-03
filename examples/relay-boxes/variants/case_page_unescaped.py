@@ -1,4 +1,4 @@
-# (header replaced by check.sh with the current spec header)
+# (appended to the generated module by check.sh — this later def replaces the box)
 # PRESERVED BAD VARIANT — well-typed, plausible, and an XSS hole: it
 # interpolates user text without the `esc` capability. Types cannot see
 # this; the reviewed hostile-text test must.

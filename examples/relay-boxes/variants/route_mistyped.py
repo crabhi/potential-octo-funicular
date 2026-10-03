@@ -1,4 +1,4 @@
-# (header replaced by check.sh with the current spec header)
+# (appended to the generated module by check.sh — this later def replaces the box)
 # PRESERVED BAD VARIANT — a plausible "simplification" an agent might make:
 # return a loose dict instead of the reviewed Route union. ty inside Monty
 # must refuse it at stage 5 of the gate, before it ever runs.

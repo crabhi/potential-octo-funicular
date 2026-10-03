@@ -1,6 +1,6 @@
 """Capture screenshots of the generated UI for README/slides.
 
-    python screenshots.py        # writes ../../docs/slides/img/boxes-*.png
+    uv run --with playwright python screenshots.py   # writes ../../docs/slides/img/boxes-*.png
 """
 
 import pathlib
@@ -8,14 +8,15 @@ import threading
 
 from playwright.sync_api import sync_playwright
 
-from relay import shell
+from relay.web import seed as demo
+from relay.web import server
 
 OUT = pathlib.Path(__file__).resolve().parents[2] / "docs" / "slides" / "img"
 
 
 def main() -> None:
-    desk, httpd = shell.build(0)
-    shell.seed(desk)
+    desk, httpd = server.build(0)
+    demo.seed(desk)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{httpd.server_address[1]}"
     sso = next(c.id for c in desk.visible_cases(desk.actor("noor"))

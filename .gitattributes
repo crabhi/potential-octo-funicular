@@ -1,4 +1,5 @@
 # Generated code is collapsed in pull-request diffs ("Load diff"), so what
 # stays on screen is exactly the code a human reviews. See
 # examples/relay-boxes/README.md ("Reviewing a change").
-examples/relay-boxes/relay/generated/** linguist-generated=true
+examples/relay-boxes/src/generated/** linguist-generated=true
+examples/relay-boxes/test/generated/** linguist-generated=true

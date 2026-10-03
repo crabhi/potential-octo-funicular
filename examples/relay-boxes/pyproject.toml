@@ -1,0 +1,28 @@
+[project]
+name = "relay-boxes"
+version = "0.1.0"
+description = "Relay helpdesk as reviewed contracts + generated bodies in Monty sandboxes"
+requires-python = ">=3.11"
+dependencies = ["pydantic-monty==1.0.0"]
+
+[project.scripts]
+relay = "relay.web.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["uv_build>=0.8.17,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# src/relay      REVIEWED  — the app, by business area
+# src/generated  GENERATED — generated.relay.* mirrors relay.* module for module
+# src/boxkit     the framework (reviewed once; a separate package in real use)
+module-name = ["relay", "generated", "boxkit"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+# test/relay/... and test/generated/relay/... mirror each other, so file
+# names repeat; importlib mode keeps them apart without __init__.py files
+addopts = ["--import-mode=importlib"]
